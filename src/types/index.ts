@@ -50,10 +50,10 @@ export interface Product {
   category: string;
   unit: string;
   isActive?: boolean;
+  // Preferred current stock field from API/backend
+  current_stock?: number;
+  // Legacy/client-computed stock for compatibility in UI
   stockQuantity?: number;
-  minStock?: number;
-  maxStock?: number;
-  taxRate?: number;
 }
 
 export interface Category {

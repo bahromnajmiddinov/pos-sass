@@ -34,6 +34,7 @@ interface ApiProduct {
   updated_by: number;
   category: string;
   unit: string;
+  current_stock?: number | string;
 }
 
 interface CategoriesResponse {
@@ -51,6 +52,14 @@ interface UnitsResponse {
 }
 
 const API_URL = import.meta.env.VITE_API_URL;
+interface DashboardData {
+  total_products: number;
+  active_products: number;
+  inactive_products: number;
+  total_value: number;
+  low_stock_products: number;
+}
+
 export default function ProductsPage() {
   const { user, company, selectedCompanyId, companies, updateCompany } =
     useAuth();
@@ -58,6 +67,7 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -67,6 +77,34 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
+
+  // Dashboard ma'lumotlarini olish
+  const fetchDashboard = async () => {
+    if (!selectedCompanyId) {
+      setDashboardData(null);
+      return;
+    }
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(`${API_URL}/api/v1/products/dashboard/`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        const data: DashboardData = await response.json();
+        setDashboardData(data);
+      } else {
+        console.error("Failed to fetch dashboard:", response.status);
+        setDashboardData(null);
+      }
+    } catch (error) {
+      console.error("Failed to fetch dashboard:", error);
+      setDashboardData(null);
+    }
+  };
 
   /// API dan ma'lumotlarni olish
   const fetchProducts = async () => {
@@ -90,52 +128,58 @@ export default function ProductsPage() {
         // Pagination response ni tekshirish
         if (data && data.results && Array.isArray(data.results)) {
           const apiProducts: ApiProduct[] = data.results;
-          const formattedProducts: Product[] = apiProducts.map((product) => ({
-            id: product.id,
-            title: product.title,
-            notes: product.notes,
-            image: product.image,
-            price: parseFloat(product.price) || 0,
-            cost: parseFloat(product.cost) || 0,
-            barcode: product.barcode,
-            reference: product.reference,
-            sku: product.sku,
-            company: product.company,
-            created_by: product.created_by,
-            updated_by: product.updated_by,
-            category: product.category,
-            unit: product.unit,
-            isActive: true,
-            stockQuantity: 0,
-            minStock: 5,
-            maxStock: 100,
-            taxRate: 0.08,
-          }));
+          const formattedProducts: Product[] = apiProducts.map((product) => {
+            const cs = typeof product.current_stock === 'number'
+              ? product.current_stock
+              : parseFloat((product.current_stock as any) ?? '0') || 0;
+            return ({
+              id: product.id,
+              title: product.title,
+              notes: product.notes,
+              image: product.image,
+              price: parseFloat(product.price) || 0,
+              cost: parseFloat(product.cost) || 0,
+              barcode: product.barcode,
+              reference: product.reference,
+              sku: product.sku,
+              company: product.company,
+              created_by: product.created_by,
+              updated_by: product.updated_by,
+              category: product.category,
+              unit: product.unit,
+              isActive: true,
+              current_stock: cs,
+              stockQuantity: cs,
+            });
+          });
           setProducts(formattedProducts);
         } else if (Array.isArray(data)) {
           // Agar to'g'ridan-to'g'ri array kelgan bo'lsa
           const apiProducts: ApiProduct[] = data;
-          const formattedProducts: Product[] = apiProducts.map((product) => ({
-            id: product.id,
-            title: product.title,
-            notes: product.notes,
-            image: product.image,
-            price: parseFloat(product.price) || 0,
-            cost: parseFloat(product.cost) || 0,
-            barcode: product.barcode,
-            reference: product.reference,
-            sku: product.sku,
-            company: product.company,
-            created_by: product.created_by,
-            updated_by: product.updated_by,
-            category: product.category,
-            unit: product.unit,
-            isActive: true,
-            stockQuantity: 0,
-            minStock: 5,
-            maxStock: 100,
-            taxRate: 0.08,
-          }));
+          const formattedProducts: Product[] = apiProducts.map((product) => {
+            const cs = typeof product.current_stock === 'number'
+              ? product.current_stock
+              : parseFloat((product.current_stock as any) ?? '0') || 0;
+            return ({
+              id: product.id,
+              title: product.title,
+              notes: product.notes,
+              image: product.image,
+              price: parseFloat(product.price) || 0,
+              cost: parseFloat(product.cost) || 0,
+              barcode: product.barcode,
+              reference: product.reference,
+              sku: product.sku,
+              company: product.company,
+              created_by: product.created_by,
+              updated_by: product.updated_by,
+              category: product.category,
+              unit: product.unit,
+              isActive: true,
+              current_stock: cs,
+              stockQuantity: cs,
+            });
+          });
           setProducts(formattedProducts);
         } else {
           console.error("Unexpected API response format:", data);
@@ -223,6 +267,7 @@ export default function ProductsPage() {
       fetchProducts();
       fetchCategories();
       fetchUnits();
+      fetchDashboard();
     }
   }, [selectedCompanyId]);
 
@@ -232,6 +277,7 @@ export default function ProductsPage() {
       console.log("Company changed event received");
       if (selectedCompanyId) {
         fetchProducts();
+        fetchDashboard();
       }
     };
 
@@ -272,6 +318,12 @@ export default function ProductsPage() {
         "cost",
         (e.currentTarget.elements.namedItem("cost") as HTMLInputElement).value
       );
+
+      // Initial/Input Stock for creation
+      const inputStockValue = (e.currentTarget.elements.namedItem("input_stock") as HTMLInputElement)?.value;
+      if (inputStockValue !== undefined) {
+        formData.append("input_stock", inputStockValue || "0");
+      }
 
       // Category va unit - agar mavjud bo'lsa
       const categoryValue = (
@@ -373,6 +425,12 @@ export default function ProductsPage() {
         "cost",
         (e.currentTarget.elements.namedItem("cost") as HTMLInputElement).value
       );
+
+      // Input Stock (optional for update)
+      const inputStockValue = (e.currentTarget.elements.namedItem("input_stock") as HTMLInputElement)?.value;
+      if (inputStockValue !== undefined) {
+        formData.append("input_stock", inputStockValue || "0");
+      }
       formData.append(
         "barcode",
         (e.currentTarget.elements.namedItem("barcode") as HTMLInputElement)
@@ -590,21 +648,8 @@ export default function ProductsPage() {
     return unit ? `${unit.title} (${unit.abbreviation})` : "Noma'lum";
   };
 
-  const getStockStatus = (product: Product) => {
-    if ((product.stockQuantity || 0) <= (product.minStock || 0)) return "low";
-    if ((product.stockQuantity || 0) >= (product.maxStock || 0)) return "high";
-    return "normal";
-  };
-
-  const getStockStatusColor = (status: string) => {
-    switch (status) {
-      case "low":
-        return "text-red-600 bg-red-100";
-      case "high":
-        return "text-green-600 bg-green-100";
-      default:
-        return "text-gray-600 bg-gray-100";
-    }
+  const getCurrentStockValue = (product: Product) => {
+    return (product.current_stock ?? product.stockQuantity ?? 0) as number;
   };
 
   // Loading dan keyin kompaniya tanlanganligini tekshirish
@@ -647,8 +692,8 @@ export default function ProductsPage() {
           <span>Add Product</span>
         </button>
       </div>
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      {/* Stats - Dashboard */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center justify-between">
             <div>
@@ -656,7 +701,7 @@ export default function ProductsPage() {
                 Total Products
               </p>
               <p className="text-2xl font-bold text-gray-900 mt-2">
-                {products.length}
+                {dashboardData?.total_products ?? products.length}
               </p>
             </div>
             <div className="bg-blue-500 p-3 rounded-lg">
@@ -668,12 +713,41 @@ export default function ProductsPage() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
           <div className="flex items-center justify-between">
             <div>
+              <p className="text-sm font-medium text-gray-600">
+                Active Products
+              </p>
+              <p className="text-2xl font-bold text-green-600 mt-2">
+                {dashboardData?.active_products ?? 0}
+              </p>
+            </div>
+            <div className="bg-green-500 p-3 rounded-lg">
+              <Package className="h-6 w-6 text-white" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">
+                Inactive Products
+              </p>
+              <p className="text-2xl font-bold text-gray-600 mt-2">
+                {dashboardData?.inactive_products ?? 0}
+              </p>
+            </div>
+            <div className="bg-gray-500 p-3 rounded-lg">
+              <Package className="h-6 w-6 text-white" />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center justify-between">
+            <div>
               <p className="text-sm font-medium text-gray-600">Total Value</p>
               <p className="text-2xl font-bold text-gray-900 mt-2">
-                $
-                {products
-                  .reduce((sum, p) => sum + (p.stockQuantity || 0) * p.cost, 0)
-                  .toFixed(2)}
+                ${dashboardData?.total_value?.toFixed(2) ?? "0.00"}
               </p>
             </div>
             <div className="bg-green-500 p-3 rounded-lg">
@@ -688,12 +762,8 @@ export default function ProductsPage() {
               <p className="text-sm font-medium text-gray-600">
                 Low Stock Items
               </p>
-              <p className="text-2xl font-bold text-gray-900 mt-2">
-                {
-                  products.filter(
-                    (p) => (p.stockQuantity || 0) <= (p.minStock || 0)
-                  ).length
-                }
+              <p className="text-2xl font-bold text-orange-600 mt-2">
+                {dashboardData?.low_stock_products ?? 0}
               </p>
             </div>
             <div className="bg-orange-500 p-3 rounded-lg">
@@ -764,7 +834,6 @@ export default function ProductsPage() {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredProducts.map((product) => {
-                const stockStatus = getStockStatus(product);
                 return (
                   <tr key={product.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -808,10 +877,7 @@ export default function ProductsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-900">
-                        {product.stockQuantity} / {product.maxStock}
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        Min: {product.minStock}
+                        {getCurrentStockValue(product)}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -825,16 +891,6 @@ export default function ProductsPage() {
                       >
                         {product.isActive ? "Active" : "Inactive"}
                       </span>
-                      {stockStatus !== "normal" && (
-                        <span
-                          className={clsx(
-                            "inline-flex px-2 py-1 text-xs font-medium rounded-full ml-2",
-                            getStockStatusColor(stockStatus)
-                          )}
-                        >
-                          {stockStatus === "low" ? "Low Stock" : "Overstocked"}
-                        </span>
-                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">
@@ -935,6 +991,18 @@ export default function ProductsPage() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Input Stock (initial)
+                  </label>
+                  <input
+                    type="number"
+                    name="input_stock"
+                    min={0}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="0"
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Product Name *
@@ -1272,6 +1340,30 @@ export default function ProductsPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Current Stock (read-only)
+                  </label>
+                  <input
+                    type="number"
+                    value={editingProduct.current_stock ?? editingProduct.stockQuantity ?? 0}
+                    readOnly
+                    disabled
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Input Stock (adjustment)
+                  </label>
+                  <input
+                    type="number"
+                    name="input_stock"
+                    min={0}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Notes
@@ -1436,9 +1528,9 @@ export default function ProductsPage() {
                     Umumiy qiymati
                   </label>
                   <p className="text-lg font-semibold text-gray-900">
-                    $
+                    $(
                     {(
-                      (selectedProduct.stockQuantity || 0) *
+                      (getCurrentStockValue(selectedProduct) || 0) *
                       selectedProduct.cost
                     ).toFixed(2)}
                   </p>

@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { Store, AlertCircle } from "lucide-react";
 
 const API_URL = import.meta.env.VITE_API_URL;
 export default function LoginPage() {
   const { user, login } = useAuth();
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -151,6 +152,9 @@ export default function LoginPage() {
                 </button>
               ))}
             </div>
+          </div>
+          <div className="mt-4 text-center">
+            <button onClick={() => navigate('/register')} className="text-sm text-gray-600 hover:text-blue-600">Don't have an account? Register</button>
           </div>
         </div>
       </div>

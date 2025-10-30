@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from "react";
 import {
   Package,
-  TrendingDown,
   TrendingUp,
-  AlertTriangle,
   Plus,
   X,
   Building,
@@ -29,6 +27,7 @@ interface Location {
   title?: string;
   notes?: string;
   is_active?: boolean;
+  active?: boolean;
   company?: number;
   created_by?: number;
   updated_by?: number;
@@ -80,6 +79,7 @@ interface StockPicking {
   created_at: string;
   updated_at: string;
   state?: string;
+  title?: string;
 }
 
 interface StockPickingFormData {
@@ -103,8 +103,6 @@ interface Product {
   name: string;
   sku: string;
   stockQuantity: number;
-  minStock: number;
-  maxStock: number;
   cost: number;
 }
 
@@ -296,16 +294,11 @@ const inventoryAPI = {
           return sum + parseFloat(quant.quantity || "0");
         }, 0) || 0;
 
-      const minStock = 5;
-      const maxStock = 50;
-
       return {
         id: apiProduct.id,
         name: apiProduct.title,
         sku: apiProduct.sku || apiProduct.reference,
         stockQuantity: totalStock,
-        minStock: minStock,
-        maxStock: maxStock,
         cost: parseFloat(apiProduct.cost) || 0,
       };
     });
@@ -314,39 +307,66 @@ const inventoryAPI = {
   },
 };
 
-// Type guard to check if an activity item is a stock picking
-function isStockPicking(item: StockPicking | StockAdjustment): item is StockPicking {
-  return 'picking_type' in item;
-}
-
 const INVENTORY_TABS = [
   { key: 'stock', label: 'Stock' },
   { key: 'transfers', label: 'Transfers' },
   { key: 'locations', label: 'Locations' },
 ];
 
-function LocationsList({ locations }) {
+function LocationsList({ locations, onEdit, onDelete }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mt-8">
-      <h3 className="text-lg font-semibold mb-4">Locations</h3>
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
-            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Address</th>
-          </tr>
-        </thead>
-        <tbody>
-          {locations.map(loc => (
-            <tr key={loc.id} className="hover:bg-gray-50">
-              <td className="px-4 py-2">{loc.name || loc.title}</td>
-              <td className="px-4 py-2">{loc.code}</td>
-              <td className="px-4 py-2">{loc.address}</td>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <h3 className="text-lg font-semibold mb-4">Storage Locations</h3>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Code</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Notes</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {locations.map(loc => (
+              <tr key={loc.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3">
+                  <div className="font-medium text-gray-900">{loc.name || loc.title}</div>
+                </td>
+                <td className="px-4 py-3">
+                  <span className="px-2 py-1 text-xs font-mono bg-gray-100 text-gray-700 rounded">
+                    {loc.code}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-sm text-gray-600">{loc.notes || '-'}</td>
+                <td className="px-4 py-3">
+                  <span className={clsx(
+                    "px-2 py-1 text-xs font-medium rounded-full",
+                    loc.is_active || loc.active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-600"
+                  )}>
+                    {loc.is_active || loc.active ? "Active" : "Inactive"}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right space-x-2">
+                  <button
+                    onClick={() => onEdit(loc)}
+                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => onDelete(loc.id)}
+                    className="text-red-600 hover:text-red-800 text-sm font-medium"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -364,44 +384,14 @@ export default function InventoryPage() {
   const [showAdjustmentModal, setShowAdjustmentModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [showLocationListModal, setShowLocationListModal] = useState(false);
+  const [showTransferDetailModal, setShowTransferDetailModal] = useState(false);
 
   // Selection states
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
+  const [selectedTransfer, setSelectedTransfer] = useState<StockPicking | null>(null);
 
   // Form states
-  const [adjustmentForm, setAdjustmentForm] = useState<CreateStockAdjustmentData>({
-    product: '',
-    location: '',
-    quantity: '',
-    reason: '',
-    notes: ''
-  });
-
-  const [transferForm, setTransferForm] = useState<StockPickingFormData>({
-    reference: `TR-${Date.now()}`,
-    source_location: '',
-    destination_location: '',
-    scheduled_date: new Date().toISOString().split('T')[0],
-    picking_type: 'internal',
-    state: 'draft',
-    status: 'draft',
-    notes: '',
-    moves: [{
-      product: '',
-      reserved_quantity: '0',
-      price: '0'
-    }]
-  });
-
-  const [stockAdjustmentForm, setStockAdjustmentForm] = useState({
-    product: "",
-    location: "",
-    quantity: "",
-    reason: "",
-    notes: ""
-  });
-
   const [locationForm, setLocationForm] = useState({
     title: "",
     notes: "",
@@ -481,73 +471,42 @@ export default function InventoryPage() {
   };
 
   // Handlers
-  const handleCreateAdjustment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (!adjustmentForm.product || !adjustmentForm.location || !adjustmentForm.quantity) {
-        setError('Please fill in all required fields');
-        return;
-      }
-
-      await inventoryAPI.createStockAdjustment(adjustmentForm);
-      setShowAdjustmentModal(false);
-      setAdjustmentForm({
-        product: '',
-        location: '',
-        quantity: '',
-        reason: '',
-        notes: ''
-      });
-      loadData();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create stock adjustment';
-      setError(errorMessage);
-    }
-  };
-
-  const handleCreateTransfer = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      if (!transferForm.source_location || !transferForm.destination_location || !transferForm.moves[0].product) {
-        setError('Please fill in all required fields');
-        return;
-      }
-
-      await inventoryAPI.createStockPicking(transferForm);
-      setShowTransferModal(false);
-      setTransferForm({
-        reference: `TR-${Date.now()}`,
-        source_location: '',
-        destination_location: '',
-        scheduled_date: new Date().toISOString().split('T')[0],
-        picking_type: 'internal',
-        state: 'draft',
-        status: 'draft',
-        notes: '',
-        moves: [{
-          product: '',
-          reserved_quantity: '0',
-          price: '0'
-        }]
-      });
-      loadData();
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create stock transfer';
-      setError(errorMessage);
-    }
-  };
-
   const handleCreateLocation = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await inventoryAPI.createLocation({
-        title: locationForm.title,
-        notes: locationForm.notes,
-        code: locationForm.code,
-        is_active: locationForm.is_active,
-      });
+      if (selectedLocation) {
+        // Update existing location
+        const token = localStorage.getItem("access_token");
+        const response = await fetch(`${API_URL}/api/v1/stock/locations/${selectedLocation.id}/`, {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            title: locationForm.title,
+            notes: locationForm.notes,
+            code: locationForm.code,
+            is_active: locationForm.is_active,
+          }),
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(`Location update failed: ${JSON.stringify(errorData)}`);
+        }
+      } else {
+        // Create new location
+        await inventoryAPI.createLocation({
+          title: locationForm.title,
+          notes: locationForm.notes,
+          code: locationForm.code,
+          is_active: locationForm.is_active,
+        });
+      }
 
       setShowLocationModal(false);
+      setSelectedLocation(null);
       setLocationForm({
         title: "",
         notes: "",
@@ -559,65 +518,140 @@ export default function InventoryPage() {
       loadData();
     } catch (err) {
       const errorMessage =
-        err instanceof Error ? err.message : "Location yaratishda xatolik";
+        err instanceof Error ? err.message : "Location operation failed";
       setError(errorMessage);
     }
   };
 
-  const handleCreateStockAdjustment = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleDeleteLocation = async (locationId: string) => {
+    if (!confirm('Are you sure you want to delete this location?')) return;
+    
     try {
-      if (!stockAdjustmentForm.product) {
-        alert("Please select a product!");
-        return;
-      }
-
-      if (!stockAdjustmentForm.location) {
-        alert("Please select a location!");
-        return;
-      }
-
-      if (!stockAdjustmentForm.quantity) {
-        alert("Please enter a quantity!");
-        return;
-      }
-
-      await inventoryAPI.createStockAdjustment(stockAdjustmentForm);
-
-      setShowAdjustmentModal(false);
-      setStockAdjustmentForm({
-        product: "",
-        location: "",
-        quantity: "",
-        reason: "",
-        notes: ""
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(`${API_URL}/api/v1/stock/locations/${locationId}/`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
-      setError(null);
-
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete location');
+      }
+      
       loadData();
     } catch (err) {
-      const errorMessage =
-        err instanceof Error ? err.message : "Error creating stock adjustment";
+      const errorMessage = err instanceof Error ? err.message : 'Delete failed';
       setError(errorMessage);
     }
+  };
+
+  const handleEditLocation = (location: Location) => {
+    setSelectedLocation(location);
+    setLocationForm({
+      title: location.title || location.name,
+      notes: location.notes || "",
+      code: location.code,
+      is_active: location.is_active ?? true,
+    });
+    setShowLocationModal(true);
+  };
+
+  const handleConfirmTransfer = async (pickingId: string) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(`${API_URL}/api/v1/stock/pickings/${pickingId}/confirm/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to confirm transfer');
+      }
+      
+      loadData();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Confirm failed';
+      setError(errorMessage);
+      alert(errorMessage);
+    }
+  };
+
+  const handleCompleteTransfer = async (pickingId: string) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(`${API_URL}/api/v1/stock/pickings/${pickingId}/done/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to complete transfer');
+      }
+      
+      loadData();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Complete failed';
+      setError(errorMessage);
+      alert(errorMessage);
+    }
+  };
+
+  const handleCancelTransfer = async (pickingId: string) => {
+    if (!confirm('Are you sure you want to cancel this transfer?')) return;
+    
+    try {
+      const token = localStorage.getItem("access_token");
+      const response = await fetch(`${API_URL}/api/v1/stock/pickings/${pickingId}/cancel/`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to cancel transfer');
+      }
+      
+      loadData();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Cancel failed';
+      setError(errorMessage);
+      alert(errorMessage);
+    }
+  };
+
+  const handleViewTransferDetail = (picking: StockPicking) => {
+    setSelectedTransfer(picking);
+    setShowTransferDetailModal(true);
   };
 
   const handleCreateStockPicking = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (!stockPickingForm.moves[0].product) {
-        alert("Iltimos, mahsulot tanlang!");
+        alert("Please select a product!");
         return;
       }
 
       if (!stockPickingForm.source_location || !stockPickingForm.destination_location) {
-        alert("Iltimos, manba va maqsad lokatsiyalarini tanlang!");
+        alert("Please select source and destination locations!");
         return;
       }
 
       await inventoryAPI.createStockPicking(stockPickingForm);
 
-      setShowAdjustmentModal(false);
+      setShowTransferModal(false);
       setStockPickingForm({
         reference: `SM-${Date.now()}`,
         picking_type: "incoming",
@@ -642,62 +676,128 @@ export default function InventoryPage() {
       const errorMessage =
         err instanceof Error ? err.message : "Stock move yaratishda xatolik";
       setError(errorMessage);
+      alert(errorMessage);
       console.error("Stock picking creation error:", err);
     }
   };
 
   // Calculate stats from products data
-  const lowStockItems = products.filter((p) => p.stockQuantity <= p.minStock);
-  const overstockedItems = products.filter((p) => p.stockQuantity >= p.maxStock);
   const totalValue = products.reduce((sum, p) => sum + p.stockQuantity * p.cost, 0);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-lg">Yuklanmoqda...</div>
+        <div className="text-lg">Loading...</div>
       </div>
     );
   }
 
   // Transfers List View
-  function TransfersList({ pickings, products, locations }) {
+  function TransfersList({ pickings, products, locations, onViewDetail, onConfirm, onComplete, onCancel }) {
+    const getStatusColor = (status: string) => {
+      switch (status) {
+        case 'draft': return 'bg-yellow-100 text-yellow-700';
+        case 'confirmed': return 'bg-blue-100 text-blue-700';
+        case 'done': return 'bg-green-100 text-green-700';
+        case 'cancel': return 'bg-red-100 text-red-700';
+        default: return 'bg-gray-100 text-gray-700';
+      }
+    };
+
+    const getTypeColor = (type: string) => {
+      switch (type) {
+        case 'incoming': return 'bg-green-50 text-green-700 border-green-200';
+        case 'outgoing': return 'bg-orange-50 text-orange-700 border-orange-200';
+        case 'internal': return 'bg-blue-50 text-blue-700 border-blue-200';
+        default: return 'bg-gray-50 text-gray-700 border-gray-200';
+      }
+    };
+
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mt-8">
+      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
         <h3 className="text-lg font-semibold mb-4">Stock Transfers</h3>
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Scheduled</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Source</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Destination</th>
-              <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Moves</th>
-            </tr>
-          </thead>
-          <tbody>
-            {pickings.map((picking) => (
-              <tr key={picking.id} className="hover:bg-gray-50">
-                <td className="px-4 py-2">{picking.reference}</td>
-                <td className="px-4 py-2">{picking.picking_type}</td>
-                <td className="px-4 py-2">{picking.status}</td>
-                <td className="px-4 py-2">{picking.scheduled_date ? new Date(picking.scheduled_date).toLocaleDateString() : '-'}</td>
-                <td className="px-4 py-2">{locations.find(l => l.id === picking.source_location)?.name || '-'}</td>
-                <td className="px-4 py-2">{locations.find(l => l.id === picking.destination_location)?.name || '-'}</td>
-                <td className="px-4 py-2">
-                  <ul>
-                    {picking.moves.map(move => (
-                      <li key={move.id}>
-                        {products.find(prod => prod.id === move.product)?.name || move.product} - Qty: {move.reserved_quantity} - Price: {move.price}
-                      </li>
-                    ))}
-                  </ul>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Route</th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Products</th>
+                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {pickings.map((picking) => (
+                <tr key={picking.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-gray-900">{picking.reference}</div>
+                    {picking.title && <div className="text-xs text-gray-500">{picking.title}</div>}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={clsx("px-2 py-1 text-xs font-medium rounded border", getTypeColor(picking.picking_type))}>
+                      {picking.picking_type}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={clsx("px-2 py-1 text-xs font-medium rounded-full", getStatusColor(picking.status))}>
+                      {picking.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {picking.scheduled_date ? new Date(picking.scheduled_date).toLocaleDateString() : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <div className="flex items-center space-x-1">
+                      <span className="text-gray-700">{locations.find(l => l.id === picking.source_location)?.name || locations.find(l => l.id === picking.source_location)?.title || '-'}</span>
+                      <span className="text-gray-400">→</span>
+                      <span className="text-gray-700">{locations.find(l => l.id === picking.destination_location)?.name || locations.find(l => l.id === picking.destination_location)?.title || '-'}</span>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="text-sm text-gray-600">{picking.moves.length} items</div>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end space-x-2">
+                      <button
+                        onClick={() => onViewDetail(picking)}
+                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                      >
+                        View
+                      </button>
+                      {picking.status === 'draft' && (
+                        <button
+                          onClick={() => onConfirm(picking.id)}
+                          className="text-green-600 hover:text-green-800 text-sm font-medium"
+                        >
+                          Confirm
+                        </button>
+                      )}
+                      {picking.status === 'confirmed' && (
+                        <button
+                          onClick={() => onComplete(picking.id)}
+                          className="text-green-600 hover:text-green-800 text-sm font-medium"
+                        >
+                          Complete
+                        </button>
+                      )}
+                      {(picking.status === 'draft' || picking.status === 'confirmed') && (
+                        <button
+                          onClick={() => onCancel(picking.id)}
+                          className="text-red-600 hover:text-red-800 text-sm font-medium"
+                        >
+                          Cancel
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
@@ -717,6 +817,19 @@ export default function InventoryPage() {
         ))}
       </div>
 
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
+          <span className="block sm:inline">{error}</span>
+          <button
+            onClick={() => setError(null)}
+            className="absolute top-0 bottom-0 right-0 px-4 py-3"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      )}
+
       {/* Tab Content */}
       {activeTab === 'stock' && (
         <>
@@ -728,19 +841,10 @@ export default function InventoryPage() {
                 Track and manage your stock levels
               </p>
             </div>
-            <div className="flex space-x-3">
-              <button
-                onClick={() => setShowAdjustmentModal(true)}
-                className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition-colors"
-              >
-                <Plus className="h-5 w-5" />
-                <span>Adjust Stock</span>
-              </button>
-            </div>
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <div className="flex items-center justify-between">
                 <div>
@@ -772,27 +876,13 @@ export default function InventoryPage() {
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Low Stock</p>
+                  <p className="text-sm font-medium text-gray-600">Locations</p>
                   <p className="text-2xl font-bold text-gray-900 mt-2">
-                    {lowStockItems.length}
+                    {locations.length}
                   </p>
                 </div>
-                <div className="bg-red-500 p-3 rounded-lg">
-                  <AlertTriangle className="h-6 w-6 text-white" />
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Overstocked</p>
-                  <p className="text-2xl font-bold text-gray-900 mt-2">
-                    {overstockedItems.length}
-                  </p>
-                </div>
-                <div className="bg-orange-500 p-3 rounded-lg">
-                  <TrendingDown className="h-6 w-6 text-white" />
+                <div className="bg-purple-500 p-3 rounded-lg">
+                  <Building className="h-6 w-6 text-white" />
                 </div>
               </div>
             </div>
@@ -818,27 +908,18 @@ export default function InventoryPage() {
                         Current Stock
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Min/Max
+                        Unit Cost
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Status
+                        Total Value
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Value
+                        Actions
                       </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {products.map((product) => {
-                      const stockPercentage = (product.stockQuantity / product.maxStock) * 100;
-                      const getStatusColor = () => {
-                        if (product.stockQuantity <= product.minStock)
-                          return "text-red-600 bg-red-100";
-                        if (product.stockQuantity >= product.maxStock)
-                          return "text-orange-600 bg-orange-100";
-                        return "text-green-600 bg-green-100";
-                      };
-
                       const productValue = product.stockQuantity * product.cost;
 
                       return (
@@ -855,45 +936,18 @@ export default function InventoryPage() {
                             <div className="text-sm font-semibold text-gray-900">
                               {product.stockQuantity}
                             </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2 mt-1">
-                              <div
-                                className={clsx(
-                                  "h-2 rounded-full transition-all",
-                                  stockPercentage <= 30
-                                    ? "bg-red-500"
-                                    : stockPercentage >= 90
-                                    ? "bg-orange-500"
-                                    : "bg-green-500"
-                                )}
-                                style={{
-                                  width: `${Math.min(stockPercentage, 100)}%`,
-                                }}
-                              />
-                            </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm text-gray-900">
-                              {product.minStock} / {product.maxStock}
+                              ${product.cost.toFixed(2)}
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span
-                              className={clsx(
-                                "inline-flex px-2 py-1 text-xs font-medium rounded-full",
-                                getStatusColor()
-                              )}
-                            >
-                              {product.stockQuantity <= product.minStock
-                                ? "Low"
-                                : product.stockQuantity >= product.maxStock
-                                ? "High"
-                                : "Normal"}
-                            </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-semibold text-gray-900">
                               ${isNaN(productValue) ? "0.00" : productValue.toFixed(2)}
                             </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
                             <button
                               onClick={() => {
                                 setSelectedProduct(product);
@@ -908,9 +962,9 @@ export default function InventoryPage() {
                                 }));
                                 setShowAdjustmentModal(true);
                               }}
-                              className="text-xs text-blue-600 hover:text-blue-800 mt-1"
+                              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                             >
-                              Adjust
+                              Adjust Stock
                             </button>
                           </td>
                         </tr>
@@ -953,7 +1007,7 @@ export default function InventoryPage() {
                               {isIncoming ? (
                                 <TrendingUp className="h-4 w-4 text-green-600" />
                               ) : (
-                                <TrendingDown className="h-4 w-4 text-red-600" />
+                                <Package className="h-4 w-4 text-red-600" />
                               )}
                             </div>
                             <div>
@@ -997,24 +1051,45 @@ export default function InventoryPage() {
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition-colors"
             >
               <Plus className="h-5 w-5" />
-              <span>Stock Transfer</span>
+              <span>New Transfer</span>
             </button>
           </div>
-          <TransfersList pickings={stockPickings} products={products} locations={locations} />
+          <TransfersList 
+            pickings={stockPickings} 
+            products={products} 
+            locations={locations}
+            onViewDetail={handleViewTransferDetail}
+            onConfirm={handleConfirmTransfer}
+            onComplete={handleCompleteTransfer}
+            onCancel={handleCancelTransfer}
+          />
         </>
       )}
       {activeTab === 'locations' && (
         <>
           <div className="flex justify-end mb-4">
             <button
-              onClick={() => setShowLocationModal(true)}
+              onClick={() => {
+                setSelectedLocation(null);
+                setLocationForm({
+                  title: "",
+                  notes: "",
+                  code: "",
+                  is_active: true,
+                });
+                setShowLocationModal(true);
+              }}
               className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium flex items-center space-x-2 transition-colors"
             >
               <Plus className="h-5 w-5" />
               <span>Add Location</span>
             </button>
           </div>
-          <LocationsList locations={locations} />
+          <LocationsList 
+            locations={locations}
+            onEdit={handleEditLocation}
+            onDelete={handleDeleteLocation}
+          />
         </>
       )}
 
@@ -1024,10 +1099,13 @@ export default function InventoryPage() {
           <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">
-                Add New Location
+                {selectedLocation ? 'Edit Location' : 'Add New Location'}
               </h3>
               <button
-                onClick={() => setShowLocationModal(false)}
+                onClick={() => {
+                  setShowLocationModal(false);
+                  setSelectedLocation(null);
+                }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <X className="h-6 w-6" />
@@ -1111,7 +1189,10 @@ export default function InventoryPage() {
               <div className="flex justify-end space-x-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowLocationModal(false)}
+                  onClick={() => {
+                    setShowLocationModal(false);
+                    setSelectedLocation(null);
+                  }}
                   className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Cancel
@@ -1120,405 +1201,10 @@ export default function InventoryPage() {
                   type="submit"
                   className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
                 >
-                  Create Location
+                  {selectedLocation ? 'Update Location' : 'Create Location'}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Stock Move Modal */}
-      {showAdjustmentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-gray-900">Stock Move</h3>
-              <button
-                onClick={() => {
-                  setShowAdjustmentModal(false);
-                  setSelectedProduct(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            {selectedProduct && (
-              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                <h4 className="font-medium text-gray-900">
-                  {selectedProduct?.name}
-                </h4>
-                <p className="text-sm text-gray-500">
-                  Current Stock: {selectedProduct?.stockQuantity}
-                </p>
-              </div>
-            )}
-
-            <form onSubmit={handleCreateStockPicking} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Product
-                </label>
-                <select
-                  required
-                  value={stockPickingForm.moves[0].product}
-                  onChange={(e) =>
-                    setStockPickingForm((prev) => ({
-                      ...prev,
-                      moves: [
-                        {
-                          ...prev.moves[0],
-                          product: e.target.value,
-                        },
-                      ],
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Select Product</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} ({product.sku})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Picking Type
-                </label>
-                <select
-                  required
-                  value={stockPickingForm.picking_type}
-                  onChange={(e) =>
-                    setStockPickingForm((prev) => ({
-                      ...prev,
-                      picking_type: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="incoming">Incoming</option>
-                  <option value="outgoing">Outgoing</option>
-                  <option value="internal">Internal</option>
-                </select>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Source Location
-                  </label>
-                  <select
-                    required
-                    value={stockPickingForm.source_location}
-                    onChange={(e) =>
-                      setStockPickingForm((prev) => ({
-                        ...prev,
-                        source_location: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Select</option>
-                    {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Destination Location
-                  </label>
-                  <select
-                    required
-                    value={stockPickingForm.destination_location}
-                    onChange={(e) =>
-                      setStockPickingForm((prev) => ({
-                        ...prev,
-                        destination_location: e.target.value,
-                      }))
-                    }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value="">Select</option>
-                    {locations.map((loc) => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Scheduled Date
-                </label>
-                <input
-                  type="date"
-                  value={stockPickingForm.scheduled_date}
-                  onChange={(e) =>
-                    setStockPickingForm((prev) => ({
-                      ...prev,
-                      scheduled_date: e.target.value,
-                    }))
-                  }
-                  className="w-full border rounded-lg px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Moves
-                </label>
-                {stockPickingForm.moves.map((move, idx) => (
-                  <div key={idx} className="flex space-x-2 mb-2">
-                    <select required value={move.product} onChange={e => {
-                      const moves = [...stockPickingForm.moves];
-                      moves[idx].product = e.target.value;
-                      setStockPickingForm(f => ({ ...f, moves }));
-                    }} className="border rounded-lg px-2 py-1">
-                      <option value="">Product</option>
-                      {products.map(prod => <option key={prod.id} value={prod.id}>{prod.name}</option>)}
-                    </select>
-                    <input type="number" required min="0" value={move.reserved_quantity} onChange={e => {
-                      const moves = [...stockPickingForm.moves];
-                      moves[idx].reserved_quantity = e.target.value;
-                      setStockPickingForm(f => ({ ...f, moves }));
-                    }} placeholder="Qty" className="border rounded-lg px-2 py-1 w-20" />
-                    <input type="number" required min="0" value={move.price} onChange={e => {
-                      const moves = [...stockPickingForm.moves];
-                      moves[idx].price = e.target.value;
-                      setStockPickingForm(f => ({ ...f, moves }));
-                    }} placeholder="Price" className="border rounded-lg px-2 py-1 w-20" />
-                    <button type="button" onClick={() => {
-                      const moves = stockPickingForm.moves.filter((_, i) => i !== idx);
-                      setStockPickingForm(f => ({ ...f, moves }));
-                    }} className="text-red-500">Remove</button>
-                  </div>
-                ))}
-                <button type="button" onClick={() => setStockPickingForm(f => ({ ...f, moves: [...f.moves, { product: '', reserved_quantity: '', price: '' }] }))} className="text-blue-500">Add Move</button>
-              </div>
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowTransferModal(false)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                >
-                  Create Transfer
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Stock Adjustment Modal */}
-      {showAdjustmentModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-md mx-4">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-gray-900">Stock Adjustment</h3>
-              <button
-                onClick={() => setShowAdjustmentModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateStockAdjustment} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Product
-                </label>
-                <select
-                  required
-                  value={stockAdjustmentForm.product}
-                  onChange={(e) =>
-                    setStockAdjustmentForm((prev) => ({
-                      ...prev,
-                      product: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Select Product</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} ({product.sku})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Location
-                </label>
-                <select
-                  required
-                  value={stockAdjustmentForm.location}
-                  onChange={(e) =>
-                    setStockAdjustmentForm((prev) => ({
-                      ...prev,
-                      location: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Select Location</option>
-                  {locations.map((location) => (
-                    <option key={location.id} value={location.id}>
-                      {location.title || location.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Quantity
-                </label>
-                <input
-                  type="number"
-                  required
-                  value={stockAdjustmentForm.quantity}
-                  onChange={(e) =>
-                    setStockAdjustmentForm((prev) => ({
-                      ...prev,
-                      quantity: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter quantity (+/-)"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Reason
-                </label>
-                <select
-                  required
-                  value={stockAdjustmentForm.reason}
-                  onChange={(e) =>
-                    setStockAdjustmentForm((prev) => ({
-                      ...prev,
-                      reason: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="">Select Reason</option>
-                  <option value="counting">Stock Counting</option>
-                  <option value="damaged">Damaged/Expired</option>
-                  <option value="lost">Lost/Stolen</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notes
-                </label>
-                <textarea
-                  rows={3}
-                  value={stockAdjustmentForm.notes}
-                  onChange={(e) =>
-                    setStockAdjustmentForm((prev) => ({
-                      ...prev,
-                      notes: e.target.value,
-                    }))
-                  }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Additional notes..."
-                />
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowAdjustmentModal(false)}
-                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                >
-                  Submit Adjustment
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Location List Modal */}
-      {showLocationListModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-gray-900">Location List</h3>
-              <button
-                onClick={() => setShowLocationListModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Code
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Notes
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {locations.map((location) => (
-                    <tr key={location.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {location.code}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {location.title || location.name}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-500">
-                        {location.notes}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={clsx(
-                            "px-2 inline-flex text-xs leading-5 font-semibold rounded-full",
-                            location.is_active
-                              ? "bg-green-100 text-green-800"
-                              : "bg-red-100 text-red-800"
-                          )}
-                        >
-                          {location.is_active ? "Active" : "Inactive"}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </div>
         </div>
       )}
@@ -1526,7 +1212,7 @@ export default function InventoryPage() {
       {/* Stock Transfer Modal */}
       {showTransferModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 w-full max-w-lg mx-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">Create Stock Transfer</h3>
               <button onClick={() => setShowTransferModal(false)} className="text-gray-400 hover:text-gray-600">
@@ -1551,14 +1237,14 @@ export default function InventoryPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Source Location</label>
                   <select required value={stockPickingForm.source_location} onChange={e => setStockPickingForm(f => ({ ...f, source_location: e.target.value }))} className="w-full border rounded-lg px-3 py-2">
                     <option value="">Select</option>
-                    {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+                    {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name || loc.title}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Destination Location</label>
                   <select required value={stockPickingForm.destination_location} onChange={e => setStockPickingForm(f => ({ ...f, destination_location: e.target.value }))} className="w-full border rounded-lg px-3 py-2">
                     <option value="">Select</option>
-                    {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name}</option>)}
+                    {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name || loc.title}</option>)}
                   </select>
                 </div>
               </div>
@@ -1567,34 +1253,40 @@ export default function InventoryPage() {
                 <input type="date" value={stockPickingForm.scheduled_date} onChange={e => setStockPickingForm(f => ({ ...f, scheduled_date: e.target.value }))} className="w-full border rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Moves</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Products</label>
                 {stockPickingForm.moves.map((move, idx) => (
                   <div key={idx} className="flex space-x-2 mb-2">
                     <select required value={move.product} onChange={e => {
                       const moves = [...stockPickingForm.moves];
                       moves[idx].product = e.target.value;
                       setStockPickingForm(f => ({ ...f, moves }));
-                    }} className="border rounded-lg px-2 py-1">
-                      <option value="">Product</option>
+                    }} className="flex-1 border rounded-lg px-2 py-1">
+                      <option value="">Select Product</option>
                       {products.map(prod => <option key={prod.id} value={prod.id}>{prod.name}</option>)}
                     </select>
-                    <input type="number" required min="0" value={move.reserved_quantity} onChange={e => {
+                    <input type="number" required min="0" step="0.01" value={move.reserved_quantity} onChange={e => {
                       const moves = [...stockPickingForm.moves];
                       moves[idx].reserved_quantity = e.target.value;
                       setStockPickingForm(f => ({ ...f, moves }));
-                    }} placeholder="Qty" className="border rounded-lg px-2 py-1 w-20" />
-                    <input type="number" required min="0" value={move.price} onChange={e => {
+                    }} placeholder="Qty" className="w-24 border rounded-lg px-2 py-1" />
+                    <input type="number" required min="0" step="0.01" value={move.price} onChange={e => {
                       const moves = [...stockPickingForm.moves];
                       moves[idx].price = e.target.value;
                       setStockPickingForm(f => ({ ...f, moves }));
-                    }} placeholder="Price" className="border rounded-lg px-2 py-1 w-20" />
-                    <button type="button" onClick={() => {
-                      const moves = stockPickingForm.moves.filter((_, i) => i !== idx);
-                      setStockPickingForm(f => ({ ...f, moves }));
-                    }} className="text-red-500">Remove</button>
+                    }} placeholder="Price" className="w-24 border rounded-lg px-2 py-1" />
+                    {stockPickingForm.moves.length > 1 && (
+                      <button type="button" onClick={() => {
+                        const moves = stockPickingForm.moves.filter((_, i) => i !== idx);
+                        setStockPickingForm(f => ({ ...f, moves }));
+                      }} className="text-red-500 hover:text-red-700">
+                        <X className="h-5 w-5" />
+                      </button>
+                    )}
                   </div>
                 ))}
-                <button type="button" onClick={() => setStockPickingForm(f => ({ ...f, moves: [...f.moves, { product: '', reserved_quantity: '', price: '' }] }))} className="text-blue-500">Add Move</button>
+                <button type="button" onClick={() => setStockPickingForm(f => ({ ...f, moves: [...f.moves, { product: '', reserved_quantity: '', price: '' }] }))} className="text-blue-600 hover:text-blue-800 text-sm font-medium mt-2">
+                  + Add Product
+                </button>
               </div>
               <div className="flex justify-end space-x-3 pt-4">
                 <button
@@ -1612,6 +1304,170 @@ export default function InventoryPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Detail Modal */}
+      {showTransferDetailModal && selectedTransfer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-3xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">{selectedTransfer.reference}</h3>
+                {selectedTransfer.title && <p className="text-sm text-gray-500 mt-1">{selectedTransfer.title}</p>}
+              </div>
+              <button onClick={() => setShowTransferDetailModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              {/* Transfer Info */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Type</label>
+                  <p className="mt-1 text-sm text-gray-900 capitalize">{selectedTransfer.picking_type}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Status</label>
+                  <p className="mt-1">
+                    <span className={clsx(
+                      "px-2 py-1 text-xs font-medium rounded-full",
+                      selectedTransfer.status === 'draft' ? 'bg-yellow-100 text-yellow-700' :
+                      selectedTransfer.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
+                      selectedTransfer.status === 'done' ? 'bg-green-100 text-green-700' :
+                      'bg-red-100 text-red-700'
+                    )}>
+                      {selectedTransfer.status}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Source Location</label>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {locations.find(l => l.id === selectedTransfer.source_location)?.name || locations.find(l => l.id === selectedTransfer.source_location)?.title || '-'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Destination Location</label>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {locations.find(l => l.id === selectedTransfer.destination_location)?.name || locations.find(l => l.id === selectedTransfer.destination_location)?.title || '-'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Scheduled Date</label>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {selectedTransfer.scheduled_date ? new Date(selectedTransfer.scheduled_date).toLocaleDateString() : '-'}
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-500">Created</label>
+                  <p className="mt-1 text-sm text-gray-900">
+                    {new Date(selectedTransfer.created_at).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+
+              {/* Products Table */}
+              <div>
+                <h4 className="text-sm font-medium text-gray-900 mb-3">Products</h4>
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Product</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Quantity</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Price</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200 bg-white">
+                      {selectedTransfer.moves.map(move => {
+                        const product = products.find(p => p.id === move.product);
+                        const total = parseFloat(move.reserved_quantity || '0') * parseFloat(move.price || '0');
+                        return (
+                          <tr key={move.id}>
+                            <td className="px-4 py-3 text-sm text-gray-900">{product?.name || move.product}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{move.reserved_quantity}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">${parseFloat(move.price || '0').toFixed(2)}</td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">${total.toFixed(2)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end space-x-3 pt-4 border-t">
+                {selectedTransfer.status === 'draft' && (
+                  <button
+                    onClick={() => {
+                      handleConfirmTransfer(selectedTransfer.id);
+                      setShowTransferDetailModal(false);
+                    }}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Confirm Transfer</span>
+                  </button>
+                )}
+                {selectedTransfer.status === 'confirmed' && (
+                  <button
+                    onClick={() => {
+                      handleCompleteTransfer(selectedTransfer.id);
+                      setShowTransferDetailModal(false);
+                    }}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Complete Transfer</span>
+                  </button>
+                )}
+                {(selectedTransfer.status === 'draft' || selectedTransfer.status === 'confirmed') && (
+                  <button
+                    onClick={() => {
+                      handleCancelTransfer(selectedTransfer.id);
+                      setShowTransferDetailModal(false);
+                    }}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    <span>Cancel Transfer</span>
+                  </button>
+                )}
+                {selectedTransfer.status === 'done' && (
+                  <div className="flex items-center space-x-2 text-green-600">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm font-medium">Transfer Completed</span>
+                  </div>
+                )}
+                {selectedTransfer.status === 'cancel' && (
+                  <div className="flex items-center space-x-2 text-red-600">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm font-medium">Transfer Cancelled</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => setShowTransferDetailModal(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

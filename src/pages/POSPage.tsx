@@ -1,51 +1,126 @@
 import { useState, useEffect } from "react";
-import { useAuth } from "../context/AuthContext";
-import { Product, SaleItem, Customer, Category, Register, Session, PaymentMethod, Currency } from "../types";
-import {
-  Search,
-  ShoppingCart,
-  Minus,
-  Plus,
-  X,
-  User,
-  CreditCard,
-  DollarSign,
-  Printer,
-  Check,
-  Calculator,
-  UserPlus,
-  Edit3,
-  Store,
-  PlusCircle,
-  Save,
-  Package,
+import { 
+  Search, ShoppingCart, Minus, Plus, X, User, CreditCard, 
+  DollarSign, Printer, Check, Calculator, Store, Package,
+  Clock, CheckCircle, XCircle, AlertCircle, Lock, Unlock,
+  TrendingUp, Calendar, RefreshCw
 } from "lucide-react";
 import { clsx } from "clsx";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-// Helper function to safely parse numbers
+// Types
+interface Product {
+  id: string;
+  title: string;
+  image?: string;
+  price: number;
+  cost: number;
+  barcode?: string;
+  reference?: string;
+  sku?: string;
+  category: string;
+  company: string;
+  stockQuantity: number;
+}
+
+interface SaleItem {
+  id: string;
+  productId: string;
+  name: string;
+  sku?: string;
+  quantity: number;
+  unitPrice: number;
+  discountAmount: number;
+  total: number;
+}
+
+interface Customer {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+}
+
+interface Category {
+  id: string;
+  title: string;
+  parent?: string;
+}
+
+interface Register {
+  id: string;
+  title: string;
+  notes?: string;
+  active: boolean;
+  status: string;
+  location?: string;
+  location_title?: string;
+  company: string;
+  created_by?: string;
+  updated_by?: string;
+}
+
+interface Session {
+  id: string;
+  title: string;
+  start_at: string;
+  end_at?: string;
+  status: string;
+  opening_balance: number;
+  closing_balance?: number;
+  total_sales: number;
+  total_refunds: number;
+  register: string;
+  register_title?: string;
+  company: string;
+}
+
+interface PaymentMethod {
+  id: string;
+  name: string;
+  is_online: boolean;
+}
+
+interface Currency {
+  id: string;
+  title: string;
+  symbol: string;
+  code: string;
+  is_default: boolean;
+}
+
+// Safe number parser
 const safeParseFloat = (value: any): number => {
   if (value === null || value === undefined) return 0;
   const parsed = parseFloat(value);
   return isNaN(parsed) ? 0 : parsed;
 };
 
+// Mock auth context
+const useAuth = () => ({
+  user: { id: "1", name: "Demo User" },
+  company: { id: "1", name: "Demo Company" }
+});
+
 export default function POSPage() {
   const { user, company } = useAuth();
+  
+  // State management
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [cart, setCart] = useState<SaleItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<string>("");
-  const [cashReceived, setCashReceived] = useState<string>("");
   const [amountPaid, setAmountPaid] = useState<string>("");
   const [showPayment, setShowPayment] = useState(false);
   const [showReceipt, setShowReceipt] = useState(false);
   const [showCustomerModal, setShowCustomerModal] = useState(false);
   const [showNumberpad, setShowNumberpad] = useState(false);
   const [numberpadValue, setNumberpadValue] = useState("");
-  const [numberpadMode, setNumberpadMode] = useState<"cash" | "quantity" | "price" | "amount_paid" | null>(null);
+  const [numberpadMode, setNumberpadMode] = useState<"quantity" | "price" | "amount_paid" | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [lastSale, setLastSale] = useState<any>(null);
   const [cartVisible, setCartVisible] = useState(false);
@@ -60,16 +135,139 @@ export default function POSPage() {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [selectedRegister, setSelectedRegister] = useState<Register | null>(null);
   const [activeSession, setActiveSession] = useState<Session | null>(null);
+  
+  // Modal states
+  const [showRegisterSelection, setShowRegisterSelection] = useState(true);
   const [showSessionModal, setShowSessionModal] = useState(false);
-  const [showRegisterModal, setShowRegisterModal] = useState(true);
   const [showNewRegisterModal, setShowNewRegisterModal] = useState(false);
   const [newRegisterTitle, setNewRegisterTitle] = useState("");
   const [newRegisterNotes, setNewRegisterNotes] = useState("");
   const [openingBalance, setOpeningBalance] = useState<string>("0");
+  const [closingBalance, setClosingBalance] = useState<string>("0");
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Fetch all data
+  // Alert/Notification state
+  const [alertModal, setAlertModal] = useState<{
+    show: boolean;
+    type: 'success' | 'error' | 'warning' | 'info';
+    title: string;
+    message: string;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+    confirmText?: string;
+    cancelText?: string;
+  }>({
+    show: false,
+    type: 'info',
+    title: '',
+    message: '',
+  });
+
+  // Input prompt state
+  const [inputPrompt, setInputPrompt] = useState<{
+    show: boolean;
+    title: string;
+    message: string;
+    placeholder: string;
+    defaultValue: string;
+    inputType: 'text' | 'number';
+    onConfirm: (value: string) => void;
+    onCancel?: () => void;
+  }>({
+    show: false,
+    title: '',
+    message: '',
+    placeholder: '',
+    defaultValue: '',
+    inputType: 'text',
+    onConfirm: () => {},
+  });
+
+  const [promptInputValue, setPromptInputValue] = useState('');
+
+  // Helper functions for alerts
+  const showAlert = (
+    type: 'success' | 'error' | 'warning' | 'info',
+    title: string,
+    message: string,
+    onConfirm?: () => void
+  ) => {
+    setAlertModal({
+      show: true,
+      type,
+      title,
+      message,
+      onConfirm,
+      confirmText: 'OK',
+    });
+  };
+
+  const showConfirm = (
+    title: string,
+    message: string,
+    onConfirm: () => void,
+    onCancel?: () => void
+  ) => {
+    setAlertModal({
+      show: true,
+      type: 'warning',
+      title,
+      message,
+      onConfirm,
+      onCancel,
+      confirmText: 'Confirm',
+      cancelText: 'Cancel',
+    });
+  };
+
+  const closeAlert = () => {
+    setAlertModal({
+      show: false,
+      type: 'info',
+      title: '',
+      message: '',
+    });
+  };
+
+  const showPrompt = (
+    title: string,
+    message: string,
+    defaultValue: string,
+    placeholder: string,
+    inputType: 'text' | 'number',
+    onConfirm: (value: string) => void,
+    onCancel?: () => void
+  ) => {
+    setPromptInputValue(defaultValue);
+    setInputPrompt({
+      show: true,
+      title,
+      message,
+      placeholder,
+      defaultValue,
+      inputType,
+      onConfirm,
+      onCancel,
+    });
+  };
+
+  const closePrompt = () => {
+    setInputPrompt({
+      show: false,
+      title: '',
+      message: '',
+      placeholder: '',
+      defaultValue: '',
+      inputType: 'text',
+      onConfirm: () => {},
+    });
+    setPromptInputValue('');
+  };
+
+  // Fetch data on mount
   useEffect(() => {
     fetchData();
   }, []);
@@ -101,7 +299,6 @@ export default function POSPage() {
         fetch(`${API_URL}/api/v1/payments/currency/`, { headers })
       ]);
 
-      // Handle responses with error checking
       const productsData = productsResponse.ok ? await productsResponse.json() : { results: [] };
       const categoriesData = categoriesResponse.ok ? await categoriesResponse.json() : { results: [] };
       const registersData = registersResponse.ok ? await registersResponse.json() : { results: [] };
@@ -110,10 +307,9 @@ export default function POSPage() {
       const paymentMethodsData = paymentMethodsResponse.ok ? await paymentMethodsResponse.json() : { results: [] };
       const currenciesData = currenciesResponse.ok ? await currenciesResponse.json() : { results: [] };
 
-      // Transform data with safe number parsing
       const transformedProducts: Product[] = (productsData.results || []).map((product: any) => ({
         id: product.id,
-        title: product.title || 'Noma\'lum mahsulot',
+        title: product.title || 'Unknown Product',
         image: product.image,
         price: safeParseFloat(product.price),
         cost: safeParseFloat(product.cost),
@@ -122,20 +318,23 @@ export default function POSPage() {
         sku: product.sku,
         category: product.category,
         company: product.company,
-        stockQuantity: safeParseFloat(product.stock_quantity || product.stock_quants?.[0]?.quantity || 0),
+        stockQuantity: safeParseFloat(product.current_stock || product.stock_quantity || 0),
       }));
 
       const transformedCategories: Category[] = (categoriesData.results || []).map((category: any) => ({
         id: category.id,
-        title: category.title || 'Noma\'lum kategoriya',
+        title: category.title || 'Unknown Category',
         parent: category.parent,
       }));
 
       const transformedRegisters: Register[] = (registersData.results || []).map((register: any) => ({
         id: register.id,
-        title: register.title || 'Noma\'lum kassa',
+        title: register.title || 'Unknown Register',
         notes: register.notes,
-        is_active: register.is_active !== false,
+        active: register.active !== false,
+        status: register.status || 'closed',
+        location: register.location,
+        location_title: register.location_title,
         company: register.company,
         created_by: register.created_by,
         updated_by: register.updated_by,
@@ -143,7 +342,7 @@ export default function POSPage() {
 
       const transformedSessions: Session[] = (sessionsData.results || []).map((session: any) => ({
         id: session.id,
-        title: session.title || 'Noma\'lum session',
+        title: session.title || 'Unknown Session',
         start_at: session.start_at,
         end_at: session.end_at,
         status: session.status,
@@ -152,12 +351,13 @@ export default function POSPage() {
         total_sales: safeParseFloat(session.total_sales),
         total_refunds: safeParseFloat(session.total_refunds),
         register: session.register,
+        register_title: session.register_title,
         company: session.company,
       }));
 
       const transformedCustomers: Customer[] = (customersData.results || []).map((customer: any) => ({
         id: customer.id,
-        name: customer.name || 'Noma\'lum mijoz',
+        name: customer.name || 'Unknown Customer',
         email: customer.email,
         phone: customer.phone,
         address: customer.address_1 || customer.address_2 || '',
@@ -165,13 +365,13 @@ export default function POSPage() {
 
       const transformedPaymentMethods: PaymentMethod[] = (paymentMethodsData.results || []).map((method: any) => ({
         id: method.id,
-        name: method.name || 'Noma\'lum usul',
+        name: method.name || 'Unknown Method',
         is_online: method.is_online,
       }));
 
       const transformedCurrencies: Currency[] = (currenciesData.results || []).map((currency: any) => ({
         id: currency.id,
-        title: currency.title || 'Noma\'lum valyuta',
+        title: currency.title || 'Unknown Currency',
         symbol: currency.symbol,
         code: currency.code,
         is_default: currency.is_default,
@@ -185,45 +385,63 @@ export default function POSPage() {
       setPaymentMethods(transformedPaymentMethods);
       setCurrencies(transformedCurrencies);
 
-      // Auto-select first register and active session
-      if (transformedRegisters.length > 0) {
-        const firstRegister = transformedRegisters[0];
-        setSelectedRegister(firstRegister);
-        
-        // Find active session for this register
-        const activeSession = transformedSessions.find(
-          (session: Session) => session.register === firstRegister.id && session.status === 'opened'
-        );
-        setActiveSession(activeSession || null);
+      // Update active session if we have one selected
+      if (activeSession) {
+        const updatedSession = transformedSessions.find(s => s.id === activeSession.id);
+        if (updatedSession && updatedSession.status === 'opened') {
+          setActiveSession(updatedSession);
+        } else {
+          // Session was closed, clear it
+          setActiveSession(null);
+          setSelectedRegister(null);
+        }
       }
 
-      // Set default payment method
-      if (transformedPaymentMethods.length > 0) {
+      if (transformedPaymentMethods.length > 0 && !paymentMethod) {
         setPaymentMethod(transformedPaymentMethods[0].id);
       }
 
     } catch (err) {
       console.error("Error fetching data:", err);
-      setError("Ma'lumotlarni yuklashda xatolik yuz berdi");
+      setError("Failed to load data");
     } finally {
       setLoading(false);
     }
   };
 
-  // Register functions
-  const handleSelectRegister = (register: Register) => {
-    setSelectedRegister(register);
-    // Find active session for selected register
-    const sessionForRegister = sessions.find(
-      session => session.register === register.id && session.status === 'opened'
-    );
-    setActiveSession(sessionForRegister || null);
-    setShowRegisterModal(false);
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchData();
+    setIsRefreshing(false);
   };
 
+  // Get active session for a register
+  const getActiveSessionForRegister = (registerId: string): Session | null => {
+    return sessions.find(
+      session => session.register === registerId && session.status === 'opened'
+    ) || null;
+  };
+
+  // Register selection handler
+  const handleSelectRegister = (register: Register) => {
+    setSelectedRegister(register);
+    const sessionForRegister = getActiveSessionForRegister(register.id);
+    setActiveSession(sessionForRegister);
+    
+    // Only show session modal if NO active session exists
+    if (!sessionForRegister) {
+      setShowRegisterSelection(false);
+      setShowSessionModal(true);
+    } else {
+      // Session exists, go directly to POS
+      setShowRegisterSelection(false);
+    }
+  };
+
+  // Create new register
   const createNewRegister = async () => {
     if (!newRegisterTitle.trim()) {
-      alert("Iltimos, kassa nomini kiriting");
+      showAlert('error', 'Validation Error', 'Please enter register name');
       return;
     }
 
@@ -238,41 +456,38 @@ export default function POSPage() {
         body: JSON.stringify({
           title: newRegisterTitle,
           notes: newRegisterNotes,
+          active: true,
         }),
       });
 
-      if (!response.ok) throw new Error("Kassa yaratishda xatolik");
+      if (!response.ok) throw new Error("Failed to create register");
 
       const newRegister = await response.json();
-      
-      // Type-safe register creation
-      const createdRegister: Register = {
-        id: newRegister.id,
-        title: newRegister.title,
-        notes: newRegister.notes,
-        is_active: newRegister.is_active !== false,
-        company: newRegister.company,
-        created_by: newRegister.created_by,
-        updated_by: newRegister.updated_by,
-      };
-
-      setRegisters(prev => [...prev, createdRegister]);
-      setSelectedRegister(createdRegister);
+      await fetchData();
       setNewRegisterTitle("");
       setNewRegisterNotes("");
       setShowNewRegisterModal(false);
       
-      alert("Yangi kassa muvaffaqiyatli yaratildi!");
+      showAlert('success', 'Success', 'Register created successfully!');
     } catch (err) {
       console.error("Error creating register:", err);
-      alert("Kassa yaratishda xatolik yuz berdi");
+      showAlert('error', 'Error', 'Failed to create register');
     }
   };
 
-  // Session functions
+  // Start new session
   const startNewSession = async () => {
     if (!selectedRegister) {
-      alert("Iltimos, avval kassani tanlang");
+      showAlert('error', 'Error', 'Please select a register first');
+      return;
+    }
+
+    // Check if there's already an active session for this register
+    const existingSession = getActiveSessionForRegister(selectedRegister.id);
+    if (existingSession) {
+      showAlert('warning', 'Session Already Active', 'This register already has an active session!');
+      setActiveSession(existingSession);
+      setShowSessionModal(false);
       return;
     }
 
@@ -285,20 +500,26 @@ export default function POSPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          is_active: true,
-          title: `Session ${new Date().toLocaleDateString()}`,
+          title: `Session ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`,
           start_at: new Date().toISOString(),
           status: "opened",
           opening_balance: safeParseFloat(openingBalance),
           register: selectedRegister.id,
-          company: company?.id || 1,
         }),
       });
 
-      if (!response.ok) throw new Error("Session ochishda xatolik");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || "Failed to start session");
+      }
 
       const newSession = await response.json();
-      setActiveSession({
+      
+      // Refresh data to get updated register status
+      await fetchData();
+      
+      // Set the new active session
+      const createdSession: Session = {
         id: newSession.id,
         title: newSession.title,
         start_at: newSession.start_at,
@@ -309,65 +530,101 @@ export default function POSPage() {
         total_sales: safeParseFloat(newSession.total_sales),
         total_refunds: safeParseFloat(newSession.total_refunds),
         register: newSession.register,
+        register_title: newSession.register_title,
         company: newSession.company,
-      });
+      };
+      
+      setActiveSession(createdSession);
       setShowSessionModal(false);
       setOpeningBalance("0");
       
-      alert("Session muvaffaqiyatli ochildi!");
+      showAlert('success', 'Session Opened', 'Session opened successfully!');
     } catch (err) {
       console.error("Error starting session:", err);
-      alert("Session ochishda xatolik yuz berdi");
+      showAlert('error', 'Error', 'Failed to start session: ' + (err as Error).message);
     }
   };
 
+  // Close session
   const closeSession = async () => {
     if (!activeSession) return;
 
+    // Prompt for closing balance
+    const suggestedBalance = (activeSession.opening_balance + activeSession.total_sales).toFixed(2);
+    const enteredBalance = prompt(
+      `Enter closing balance:\n\nSuggested: ${suggestedBalance}\nOpening: ${activeSession.opening_balance.toFixed(2)}\nSales: ${activeSession.total_sales.toFixed(2)}`,
+      suggestedBalance
+    );
+
+    if (enteredBalance === null) return; // User cancelled
+
+    const finalBalance = safeParseFloat(enteredBalance);
+    if (finalBalance < 0) {
+      alert("Closing balance cannot be negative");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Close session with balance ${finalBalance.toFixed(2)}?\n\nThis action cannot be undone.`
+    );
+    if (!confirmed) return;
+
     try {
       const token = localStorage.getItem("access_token");
-      const response = await fetch(`${API_URL}/api/v1/pos/sessions/${activeSession.id}/`, {
-        method: "PATCH",
+      
+      const response = await fetch(`${API_URL}/api/v1/pos/sessions/${activeSession.id}/close/`, {
+        method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          end_at: new Date().toISOString(),
-          status: "closed",
-          closing_balance: (activeSession.opening_balance || 0) + (activeSession.total_sales || 0),
+          closing_balance: finalBalance,
         }),
       });
 
-      if (!response.ok) throw new Error("Session yopishda xatolik");
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.detail || "Failed to close session");
+      }
 
+      const closedSession = await response.json();
+      
+      // Show success message with session summary
+      alert(
+        `Session closed successfully!\n\n` +
+        `Opening: ${activeSession.opening_balance.toFixed(2)}\n` +
+        `Sales: ${activeSession.total_sales.toFixed(2)}\n` +
+        `Closing: ${finalBalance.toFixed(2)}\n` +
+        `Difference: ${(finalBalance - activeSession.opening_balance - activeSession.total_sales).toFixed(2)}`
+      );
+
+      // Refresh data and reset state
+      await fetchData();
       setActiveSession(null);
-      alert("Session muvaffaqiyatli yopildi!");
+      setSelectedRegister(null);
+      setShowRegisterSelection(true);
+      setClosingBalance("0");
+      clearCart();
+      
     } catch (err) {
       console.error("Error closing session:", err);
-      alert("Session yopishda xatolik yuz berdi");
+      alert("Failed to close session: " + (err as Error).message);
     }
-  };
-
-  // Customer functions
-  const handleSelectCustomer = (customer: Customer) => {
-    setSelectedCustomer(customer);
-    setShowCustomerModal(false);
   };
 
   // Cart functions
   const addToCart = (product: Product) => {
     if (!activeSession) {
-      alert("Iltimos, avval session oching");
+      showAlert('warning', 'No Active Session', 'Please start a session first');
       return;
     }
 
-    // Check if product is in stock
     const currentStock = product.stockQuantity || 0;
     const currentInCart = getProductQuantityInCart(product.id);
     
     if (currentInCart >= currentStock) {
-      alert(`Uzr, omborda faqat ${currentStock} dona qolgan!`);
+      showAlert('error', 'Out of Stock', `Sorry, only ${currentStock} items in stock!`);
       return;
     }
 
@@ -396,12 +653,11 @@ export default function POSPage() {
       return;
     }
 
-    // Check stock before updating quantity
     const item = cart.find(item => item.id === itemId);
     if (item) {
       const product = products.find(p => p.id === item.productId);
       if (product && quantity > (product.stockQuantity || 0)) {
-        alert(`Uzr, omborda faqat ${product.stockQuantity} dona qolgan!`);
+        showAlert('error', 'Insufficient Stock', `Sorry, only ${product.stockQuantity} items in stock!`);
         return;
       }
     }
@@ -429,9 +685,13 @@ export default function POSPage() {
     setCart([]);
     setSelectedCustomer(null);
     setShowPayment(false);
-    setCashReceived("");
     setAmountPaid("");
     setCartVisible(false);
+  };
+
+  const getProductQuantityInCart = (productId: string): number => {
+    const item = cart.find(item => item.productId === productId);
+    return item ? item.quantity : 0;
   };
 
   // Numberpad functions
@@ -455,12 +715,6 @@ export default function POSPage() {
     }
   };
 
-  const openCashPad = () => {
-    setNumberpadValue(amountPaid || total.toFixed(2));
-    setNumberpadMode("cash");
-    setShowNumberpad(true);
-  };
-
   const openAmountPaidPad = () => {
     setNumberpadValue(amountPaid || total.toFixed(2));
     setNumberpadMode("amount_paid");
@@ -468,9 +722,7 @@ export default function POSPage() {
   };
 
   const handleNumberpadEnter = () => {
-    if (numberpadMode === "cash") {
-      setCashReceived(numberpadValue);
-    } else if (numberpadMode === "amount_paid") {
+    if (numberpadMode === "amount_paid") {
       setAmountPaid(numberpadValue);
     } else if (numberpadMode === "quantity" && editingItemId) {
       const quantity = parseFloat(numberpadValue) || 1;
@@ -489,12 +741,12 @@ export default function POSPage() {
   // Process sale
   const processSale = async () => {
     if (!activeSession || !selectedRegister) {
-      alert("Iltimos, session va kassani tekshiring");
+      showAlert('error', 'Error', 'Please check session and register');
       return;
     }
 
     if (cart.length === 0) {
-      alert("Savat bo'sh");
+      showAlert('warning', 'Empty Cart', 'Cart is empty');
       return;
     }
 
@@ -511,12 +763,8 @@ export default function POSPage() {
         session: activeSession.id,
         register: selectedRegister.id,
         customer: selectedCustomer?.id || null,
-        amount_total: total.toFixed(2),
         amount_paid: amountPaid || total.toFixed(2),
-        amount_due: (total - parseFloat(amountPaid || total.toString())).toFixed(2),
       };
-
-      console.log('Sending sale data:', saleData);
 
       const response = await fetch(`${API_URL}/api/v1/pos/sales/`, {
         method: "POST",
@@ -529,12 +777,11 @@ export default function POSPage() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Sotuvni amalga oshirishda xatolik: ${response.status} - ${errorText}`);
+        throw new Error(`Failed to process sale: ${errorText}`);
       }
 
       const saleResult = await response.json();
 
-      // Create receipt
       const receiptNumber = `R${saleResult.id?.slice(-4) || '0000'}-${Date.now().toString().slice(-6)}`;
       const sale = {
         id: saleResult.id,
@@ -553,18 +800,12 @@ export default function POSPage() {
       setShowPayment(false);
       setShowReceipt(true);
       clearCart();
-      fetchData();
+      await fetchData();
 
     } catch (err) {
       console.error("Error processing sale:", err);
-      alert("Sotuvni amalga oshirishda xatolik yuz berdi: " + (err as Error).message);
+      showAlert('error', 'Sale Failed', 'Failed to process sale: ' + (err as Error).message);
     }
-  };
-
-  // Helper functions
-  const getProductQuantityInCart = (productId: string): number => {
-    const item = cart.find(item => item.productId === productId);
-    return item ? item.quantity : 0;
   };
 
   // Calculations
@@ -572,7 +813,6 @@ export default function POSPage() {
   const taxRate = 0.08;
   const taxAmount = subtotal * taxRate;
   const total = subtotal + taxAmount;
-  const change = parseFloat(cashReceived) - total;
   const amountDue = total - parseFloat(amountPaid || "0");
 
   // Filter products
@@ -583,76 +823,287 @@ export default function POSPage() {
     return matchesCategory && matchesSearch;
   });
 
+  // Get register status badge
+  const getRegisterStatusBadge = (register: Register) => {
+    const session = getActiveSessionForRegister(register.id);
+    
+    if (!register.active) {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+          <XCircle className="w-3 h-3 mr-1" />
+          Inactive
+        </span>
+      );
+    }
+    
+    if (session) {
+      return (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+          <CheckCircle className="w-3 h-3 mr-1" />
+          Session Active
+        </span>
+      );
+    }
+    
+    return (
+      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+        <Lock className="w-3 h-3 mr-1" />
+        Closed
+      </span>
+    );
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 font-medium">Loading POS...</p>
+        </div>
       </div>
     );
   }
 
+  // Register Selection View
+  if (showRegisterSelection) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
+        <div className="container mx-auto px-4 py-8">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-600 rounded-2xl mb-4">
+              <Store className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold text-gray-900 mb-2">POS Terminal</h1>
+            <p className="text-gray-600">Select a register to start selling</p>
+            
+            <button
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="mt-4 inline-flex items-center px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              <RefreshCw className={clsx("w-4 h-4 mr-2", isRefreshing && "animate-spin")} />
+              Refresh
+            </button>
+          </div>
+
+          {/* Register Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+            {registers.map((register) => {
+              const session = getActiveSessionForRegister(register.id);
+              
+              return (
+                <button
+                  key={register.id}
+                  onClick={() => handleSelectRegister(register)}
+                  disabled={!register.active}
+                  className={clsx(
+                    "bg-white rounded-2xl p-6 text-left transition-all border-2",
+                    register.active
+                      ? "hover:shadow-xl hover:scale-105 border-transparent hover:border-blue-500 cursor-pointer"
+                      : "opacity-50 cursor-not-allowed border-gray-200"
+                  )}
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center space-x-3">
+                      <div className={clsx(
+                        "w-12 h-12 rounded-xl flex items-center justify-center",
+                        session ? "bg-green-100" : "bg-gray-100"
+                      )}>
+                        <Store className={clsx(
+                          "w-6 h-6",
+                          session ? "text-green-600" : "text-gray-600"
+                        )} />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-lg text-gray-900">{register.title}</h3>
+                        {register.location_title && (
+                          <p className="text-sm text-gray-500">{register.location_title}</p>
+                        )}
+                      </div>
+                    </div>
+                    {getRegisterStatusBadge(register)}
+                  </div>
+
+                  {session && (
+                    <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-green-900">Active Session</span>
+                        <span className="text-xs text-green-600">
+                          {new Date(session.start_at).toLocaleTimeString()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-green-700">Total Sales</span>
+                        <span className="text-lg font-bold text-green-900">
+                          ${session.total_sales.toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {!session && register.active && (
+                    <div className="bg-gray-50 rounded-xl p-4 border border-gray-200">
+                      <p className="text-sm text-gray-600 text-center">
+                        Click to open new session
+                      </p>
+                    </div>
+                  )}
+
+                  {register.notes && (
+                    <p className="mt-3 text-sm text-gray-500 line-clamp-2">{register.notes}</p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Create New Register Button */}
+          <div className="text-center">
+            <button
+              onClick={() => setShowNewRegisterModal(true)}
+              className="inline-flex items-center px-6 py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-lg hover:shadow-xl"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Create New Register
+            </button>
+          </div>
+        </div>
+
+        {/* New Register Modal */}
+        {showNewRegisterModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-2xl font-bold">Create New Register</h3>
+                <button onClick={() => setShowNewRegisterModal(false)}>
+                  <X className="h-6 w-6 text-gray-400 hover:text-gray-600" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-700">Register Name *</label>
+                  <input
+                    type="text"
+                    value={newRegisterTitle}
+                    onChange={(e) => setNewRegisterTitle(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="e.g., Front Counter"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-700">Notes</label>
+                  <textarea
+                    value={newRegisterNotes}
+                    onChange={(e) => setNewRegisterNotes(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    rows={3}
+                    placeholder="Additional information"
+                  />
+                </div>
+              </div>
+
+              <div className="flex space-x-3 mt-6">
+                <button
+                  onClick={() => setShowNewRegisterModal(false)}
+                  className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={createNewRegister}
+                  className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
+                >
+                  Create Register
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Main POS View
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
       {/* Header */}
-      <div className="bg-white border-b shadow-sm">
+      <div className="bg-white border-b shadow-sm sticky top-0 z-40">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">POS Terminali</h1>
+              <h1 className="text-2xl font-bold text-gray-900">POS Terminal</h1>
               
-              {/* Register Selector */}
+              {/* Register Info */}
               <button
-                onClick={() => setShowRegisterModal(true)}
-                className="flex items-center space-x-2 px-3 py-2 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 hover:bg-blue-100"
+                onClick={() => {
+                  setShowRegisterSelection(true);
+                  setActiveSession(null);
+                  setSelectedRegister(null);
+                }}
+                className="flex items-center space-x-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg border border-blue-200 hover:bg-blue-100 transition-colors"
               >
                 <Store className="h-4 w-4" />
-                <span>{selectedRegister?.title || "Kassa tanlanmagan"}</span>
+                <span className="font-medium">{selectedRegister?.title}</span>
               </button>
 
               {/* Session Status */}
               {activeSession ? (
-                <div className="flex items-center space-x-2 bg-green-50 text-green-700 px-3 py-2 rounded-lg border border-green-200">
-                  <span>Session ochiq</span>
-                  <span className="font-bold">
-                    ${(activeSession.total_sales || 0).toFixed(2)}
-                  </span>
+                <div className="flex items-center space-x-3 bg-green-50 text-green-700 px-4 py-2 rounded-lg border border-green-200">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="font-medium">Session Active</span>
+                  </div>
+                  <div className="h-4 w-px bg-green-300"></div>
+                  <div className="flex items-center space-x-2">
+                    <TrendingUp className="h-4 w-4" />
+                    <span className="font-bold">${(activeSession.total_sales || 0).toFixed(2)}</span>
+                  </div>
                   <button
-                    onClick={closeSession}
-                    className="text-red-600 hover:text-red-800 text-sm"
+                    onClick={() => {
+                      const balance = prompt("Enter closing balance:", 
+                        (activeSession.opening_balance + activeSession.total_sales).toFixed(2));
+                      if (balance) {
+                        setClosingBalance(balance);
+                        closeSession();
+                      }
+                    }}
+                    className="text-red-600 hover:text-red-800 text-sm font-medium ml-2"
                   >
-                    Yopish
+                    Close Session
                   </button>
                 </div>
               ) : (
                 <button
                   onClick={() => setShowSessionModal(true)}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  Session ochish
+                  Open Session
                 </button>
               )}
             </div>
 
-            {/* Customer and Cart Buttons */}
+            {/* Right side actions */}
             <div className="flex items-center space-x-3">
               {/* Customer Button */}
               <button
                 onClick={() => setShowCustomerModal(true)}
-                className="flex items-center space-x-2 px-3 py-2 bg-purple-50 text-purple-700 rounded-lg border border-purple-200 hover:bg-purple-100"
+                className="flex items-center space-x-2 px-4 py-2 bg-purple-50 text-purple-700 rounded-lg border border-purple-200 hover:bg-purple-100 transition-colors"
               >
                 <User className="h-4 w-4" />
-                <span>{selectedCustomer?.name || "Mijoz tanlanmagan"}</span>
+                <span className="font-medium">{selectedCustomer?.name || "No Customer"}</span>
               </button>
 
               {/* Cart Button */}
               <button
                 onClick={() => setCartVisible(true)}
-                className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg relative"
+                className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg relative hover:bg-blue-700 transition-colors"
               >
                 <ShoppingCart className="h-5 w-5" />
-                <span>{cart.length}</span>
+                <span className="font-bold">{cart.length}</span>
                 {cart.length > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-6 h-6 text-xs flex items-center justify-center font-bold shadow-lg">
                     {cart.length}
                   </span>
                 )}
@@ -666,40 +1117,126 @@ export default function POSPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <input
                 type="text"
-                placeholder="Mahsulotlarni qidirish (nomi, SKU)..."
+                placeholder="Search products (name, SKU)..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
             
-            <div className="flex space-x-2 overflow-x-auto pb-2">
+            {/* Category Dropdown */}
+            <div className="relative">
               <button
-                onClick={() => setSelectedCategory("all")}
+                onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
                 className={clsx(
-                  "px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap",
+                  "flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium whitespace-nowrap transition-colors min-w-[200px] border-2",
                   selectedCategory === "all"
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-white text-gray-700 border-gray-300 hover:border-blue-500"
                 )}
               >
-                Barchasi
-              </button>
-              {categories.map((category) => (
-                <button
-                  key={category.id}
-                  onClick={() => setSelectedCategory(category.id)}
-                  className={clsx(
-                    "px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap",
-                    selectedCategory === category.id
-                      ? "bg-blue-600 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-                  )}
+                <span className="flex items-center space-x-2">
+                  <Package className="w-4 h-4" />
+                  <span>
+                    {selectedCategory === "all" 
+                      ? "All Categories" 
+                      : categories.find(c => c.id === selectedCategory)?.title || "Select Category"}
+                  </span>
+                </span>
+                <svg 
+                  className={clsx("w-4 h-4 transition-transform ml-2", showCategoryDropdown && "rotate-180")}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
                 >
-                  {category.title}
-                </button>
-              ))}
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Dropdown Menu */}
+              {showCategoryDropdown && (
+                <>
+                  {/* Backdrop to close dropdown */}
+                  <div 
+                    className="fixed inset-0 z-40" 
+                    onClick={() => setShowCategoryDropdown(false)}
+                  />
+                  
+                  <div className="absolute top-full mt-2 left-0 right-0 bg-white rounded-lg shadow-2xl border-2 border-gray-200 z-50 max-h-[400px] overflow-auto">
+                    {/* All Categories Option */}
+                    <button
+                      onClick={() => {
+                        setSelectedCategory("all");
+                        setShowCategoryDropdown(false);
+                      }}
+                      className={clsx(
+                        "w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 font-medium",
+                        selectedCategory === "all" && "bg-blue-50 text-blue-700"
+                      )}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center space-x-2">
+                          <Package className="w-4 h-4" />
+                          <span>All Categories</span>
+                        </span>
+                        {selectedCategory === "all" && (
+                          <Check className="w-4 h-4 text-blue-600" />
+                        )}
+                      </div>
+                      <span className="text-xs text-gray-500 ml-6">
+                        {products.length} products
+                      </span>
+                    </button>
+
+                    {/* Category List */}
+                    {categories.length > 0 ? (
+                      categories.map((category) => {
+                        const categoryProductCount = products.filter(p => p.category === category.id).length;
+                        return (
+                          <button
+                            key={category.id}
+                            onClick={() => {
+                              setSelectedCategory(category.id);
+                              setShowCategoryDropdown(false);
+                            }}
+                            className={clsx(
+                              "w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 last:border-b-0",
+                              selectedCategory === category.id && "bg-blue-50 text-blue-700 font-medium"
+                            )}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span>{category.title}</span>
+                              {selectedCategory === category.id && (
+                                <Check className="w-4 h-4 text-blue-600" />
+                              )}
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {categoryProductCount} products
+                            </span>
+                          </button>
+                        );
+                      })
+                    ) : (
+                      <div className="px-4 py-8 text-center text-gray-500">
+                        <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                        <p className="text-sm">No categories available</p>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
+
+            {/* Quick Filter Badges (optional - shows count) */}
+            {selectedCategory !== "all" && (
+              <button
+                onClick={() => setSelectedCategory("all")}
+                className="flex items-center space-x-2 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm"
+              >
+                <X className="w-4 h-4" />
+                <span>Clear Filter</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -707,22 +1244,25 @@ export default function POSPage() {
       {/* Main Content */}
       <div className="flex-1 container mx-auto px-4 py-6">
         {!activeSession ? (
-          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <div className="text-gray-400 text-6xl mb-4">🛒</div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Session ochilmagan</h3>
-            <p className="text-gray-500 mb-4">Sotuvni boshlash uchun session oching</p>
+          <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-yellow-100 rounded-full mb-4">
+              <AlertCircle className="w-10 h-10 text-yellow-600" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">No Active Session</h3>
+            <p className="text-gray-500 mb-6">You need to open a session to start selling</p>
             <button
               onClick={() => setShowSessionModal(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg"
+              className="inline-flex items-center px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-semibold transition-colors shadow-lg"
             >
-              Session ochish
+              <Unlock className="w-5 h-5 mr-2" />
+              Open Session
             </button>
           </div>
         ) : filteredProducts.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm p-8 text-center">
+          <div className="bg-white rounded-2xl shadow-sm p-12 text-center">
             <div className="text-gray-400 text-6xl mb-4">🔍</div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Mahsulot topilmadi</h3>
-            <p className="text-gray-500">Qidiruv so'rovingizga mos mahsulot topilmadi</p>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">No Products Found</h3>
+            <p className="text-gray-500">No products match your search criteria</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
@@ -738,35 +1278,32 @@ export default function POSPage() {
                   onClick={() => !isOutOfStock && canAddMore && addToCart(product)}
                   disabled={isOutOfStock || !canAddMore}
                   className={clsx(
-                    "bg-white p-4 rounded-lg shadow-sm border-2 transition-all text-left relative group",
+                    "bg-white p-4 rounded-xl shadow-sm border-2 transition-all text-left relative group",
                     isOutOfStock 
                       ? "border-gray-200 opacity-50 cursor-not-allowed" 
                       : canAddMore
-                        ? "border-gray-200 hover:border-blue-500 hover:shadow-md"
+                        ? "border-gray-200 hover:border-blue-500 hover:shadow-lg"
                         : "border-orange-300 bg-orange-50"
                   )}
                 >
-                  {/* Quantity in cart badge */}
                   {quantityInCart > 0 && (
-                    <div className="absolute -top-2 -right-2 bg-blue-600 text-white rounded-full w-7 h-7 flex items-center justify-center text-xs font-bold shadow-lg z-10">
+                    <div className="absolute -top-2 -right-2 bg-blue-600 text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold shadow-lg z-10">
                       {quantityInCart}
                     </div>
                   )}
 
-                  {/* Out of stock overlay */}
                   {isOutOfStock && (
-                    <div className="absolute inset-0 bg-gray-100 bg-opacity-90 rounded-lg flex items-center justify-center z-20">
-                      <span className="bg-red-500 text-white px-3 py-1 rounded text-sm font-bold">
-                        Tugagan
+                    <div className="absolute inset-0 bg-gray-900 bg-opacity-75 rounded-xl flex items-center justify-center z-20">
+                      <span className="bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold shadow-lg">
+                        Out of Stock
                       </span>
                     </div>
                   )}
 
-                  {/* Stock limit warning */}
                   {!isOutOfStock && !canAddMore && (
-                    <div className="absolute inset-0 bg-orange-100 bg-opacity-80 rounded-lg flex items-center justify-center z-20">
-                      <span className="bg-orange-500 text-white px-3 py-1 rounded text-sm font-bold">
-                        Limit: {stockQuantity}
+                    <div className="absolute inset-0 bg-orange-500 bg-opacity-90 rounded-xl flex items-center justify-center z-20">
+                      <span className="bg-white text-orange-600 px-3 py-1.5 rounded-lg text-sm font-bold shadow-lg">
+                        Max: {stockQuantity}
                       </span>
                     </div>
                   )}
@@ -776,29 +1313,30 @@ export default function POSPage() {
                       <img
                         src={product.image}
                         alt={product.title}
-                        className="w-full h-full object-cover rounded-lg"
+                        className="w-full h-full object-cover"
                       />
                     ) : (
                       <Package className="h-12 w-12 text-gray-400" />
                     )}
                   </div>
                   
-                  <h3 className="font-medium text-gray-900 text-sm mb-1 line-clamp-2">
+                  <h3 className="font-semibold text-gray-900 text-sm mb-1 line-clamp-2">
                     {product.title}
                   </h3>
                   
-                  <p className="text-xs text-gray-500 mb-2 font-mono">{product.sku}</p>
+                  {product.sku && (
+                    <p className="text-xs text-gray-500 mb-2 font-mono">{product.sku}</p>
+                  )}
                   
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between mb-2">
                     <p className="text-lg font-bold text-gray-900">
                       ${product.price.toFixed(2)}
                     </p>
                     
-                    {/* Stock information */}
                     <div className="flex items-center space-x-1 text-xs">
                       <Package className="h-3 w-3 text-gray-400" />
                       <span className={clsx(
-                        "font-medium",
+                        "font-semibold",
                         stockQuantity === 0 ? "text-red-600" :
                         stockQuantity < 10 ? "text-orange-600" : "text-green-600"
                       )}>
@@ -807,17 +1345,16 @@ export default function POSPage() {
                     </div>
                   </div>
 
-                  {/* Stock progress bar */}
                   {!isOutOfStock && (
-                    <div className="mt-2 w-full bg-gray-200 rounded-full h-1">
+                    <div className="w-full bg-gray-200 rounded-full h-1.5">
                       <div 
                         className={clsx(
-                          "h-1 rounded-full",
+                          "h-1.5 rounded-full transition-all",
                           stockQuantity === 0 ? "bg-red-500" :
                           stockQuantity < 10 ? "bg-orange-500" : "bg-green-500"
                         )}
                         style={{ 
-                          width: `${Math.min((stockQuantity / Math.max(stockQuantity, 10)) * 100, 100)}%` 
+                          width: `${Math.min((stockQuantity / Math.max(stockQuantity, 20)) * 100, 100)}%` 
                         }}
                       />
                     </div>
@@ -829,38 +1366,117 @@ export default function POSPage() {
         )}
       </div>
 
-      {/* Customer Modal */}
-      {showCustomerModal && (
+      {/* Session Modal */}
+      {showSessionModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Mijozi tanlang</h3>
-              <button onClick={() => setShowCustomerModal(false)}>
-                <X className="h-5 w-5" />
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-bold text-gray-900">Open New Session</h3>
+              <button onClick={() => setShowSessionModal(false)}>
+                <X className="h-6 w-6 text-gray-400 hover:text-gray-600" />
               </button>
             </div>
             
-            <div className="space-y-3 max-h-96 overflow-auto">
+            {!selectedRegister ? (
+              <div className="text-center py-8">
+                <AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+                <p className="text-gray-600 mb-6">Please select a register first</p>
+                <button
+                  onClick={() => {
+                    setShowSessionModal(false);
+                    setShowRegisterSelection(true);
+                  }}
+                  className="bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700"
+                >
+                  Select Register
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-200">
+                  <div className="flex items-center space-x-3 mb-2">
+                    <Store className="w-5 h-5 text-blue-600" />
+                    <p className="text-sm font-medium text-blue-900">Register</p>
+                  </div>
+                  <p className="font-bold text-lg text-blue-900">{selectedRegister.title}</p>
+                  {selectedRegister.location_title && (
+                    <p className="text-sm text-blue-700 mt-1">{selectedRegister.location_title}</p>
+                  )}
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-semibold mb-2 text-gray-700">
+                    Opening Balance
+                  </label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={openingBalance}
+                      onChange={(e) => setOpeningBalance(e.target.value)}
+                      className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent text-lg font-semibold"
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">Enter the cash amount in the register</p>
+                </div>
+
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowSessionModal(false)}
+                    className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={startNewSession}
+                    className="flex-1 py-3 bg-green-600 text-white rounded-xl font-semibold hover:bg-green-700 transition-colors shadow-lg"
+                  >
+                    Open Session
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Customer Modal */}
+      {showCustomerModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-2xl font-bold text-gray-900">Select Customer</h3>
+              <button onClick={() => setShowCustomerModal(false)}>
+                <X className="h-6 w-6 text-gray-400 hover:text-gray-600" />
+              </button>
+            </div>
+            
+            <div className="space-y-3 overflow-auto flex-1">
               {customers.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <User className="h-12 w-12 mx-auto mb-3 text-gray-400" />
-                  <p>Hech qanday mijoz topilmadi</p>
+                <div className="text-center py-12">
+                  <User className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <p className="text-gray-500">No customers found</p>
                 </div>
               ) : (
                 customers.map((customer) => (
                   <button
                     key={customer.id}
-                    onClick={() => handleSelectCustomer(customer)}
+                    onClick={() => {
+                      setSelectedCustomer(customer);
+                      setShowCustomerModal(false);
+                    }}
                     className={clsx(
-                      "w-full text-left p-4 rounded-lg border-2 transition-colors",
+                      "w-full text-left p-4 rounded-xl border-2 transition-all",
                       selectedCustomer?.id === customer.id
-                        ? "border-blue-600 bg-blue-50"
-                        : "border-gray-200 hover:border-gray-300"
+                        ? "border-purple-600 bg-purple-50 shadow-md"
+                        : "border-gray-200 hover:border-purple-300 hover:bg-purple-50"
                     )}
                   >
-                    <div className="font-medium">{customer.name}</div>
+                    <div className="font-semibold text-gray-900">{customer.name}</div>
                     {(customer.phone || customer.email) && (
-                      <div className="text-sm text-gray-500 mt-1">
+                      <div className="text-sm text-gray-500 mt-1 space-y-0.5">
                         {customer.phone && <div>📞 {customer.phone}</div>}
                         {customer.email && <div>✉️ {customer.email}</div>}
                       </div>
@@ -870,19 +1486,22 @@ export default function POSPage() {
               )}
             </div>
 
-            <div className="flex space-x-3 mt-6">
+            <div className="flex space-x-3 mt-6 pt-4 border-t">
               <button
                 onClick={() => setShowCustomerModal(false)}
-                className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium"
               >
-                Yopish
+                Close
               </button>
               {selectedCustomer && (
                 <button
-                  onClick={() => setSelectedCustomer(null)}
-                  className="flex-1 py-3 bg-red-600 text-white rounded-lg font-semibold transition-colors"
+                  onClick={() => {
+                    setSelectedCustomer(null);
+                    setShowCustomerModal(false);
+                  }}
+                  className="flex-1 py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700"
                 >
-                  Mijozni olib tashlash
+                  Remove Customer
                 </button>
               )}
             </div>
@@ -893,19 +1512,19 @@ export default function POSPage() {
       {/* Cart Sidebar */}
       {cartVisible && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-end">
-          <div className="bg-white w-full max-w-md h-full overflow-auto">
-            <div className="p-4 border-b flex items-center justify-between">
-              <h2 className="text-xl font-bold">Savat ({cart.length})</h2>
+          <div className="bg-white w-full max-w-md h-full overflow-auto flex flex-col">
+            <div className="p-4 border-b flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-700 text-white sticky top-0 z-10">
+              <h2 className="text-xl font-bold">Cart ({cart.length})</h2>
               <button onClick={() => setCartVisible(false)}>
-                <X className="h-5 w-5" />
+                <X className="h-6 w-6" />
               </button>
             </div>
             
-            <div className="p-4">
+            <div className="flex-1 overflow-auto p-4">
               {cart.length === 0 ? (
-                <div className="text-center py-8">
-                  <ShoppingCart className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">Savat bo'sh</p>
+                <div className="text-center py-16">
+                  <ShoppingCart className="h-20 w-20 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 text-lg">Cart is empty</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -915,34 +1534,36 @@ export default function POSPage() {
                     const isLowStock = item.quantity >= stockQuantity;
 
                     return (
-                      <div key={item.id} className="border rounded-lg p-4">
-                        <div className="flex justify-between items-start mb-2">
+                      <div key={item.id} className="border-2 border-gray-200 rounded-xl p-4 hover:border-blue-300 transition-colors">
+                        <div className="flex justify-between items-start mb-3">
                           <div className="flex-1">
-                            <h4 className="font-medium">{item.name}</h4>
-                            <p className="text-xs text-gray-500">{item.sku}</p>
+                            <h4 className="font-semibold text-gray-900">{item.name}</h4>
+                            {item.sku && (
+                              <p className="text-xs text-gray-500 font-mono mt-0.5">{item.sku}</p>
+                            )}
                           </div>
                           <button 
                             onClick={() => removeFromCart(item.id)}
-                            className="text-gray-400 hover:text-gray-600 ml-2"
+                            className="text-gray-400 hover:text-red-600 ml-2 transition-colors"
                           >
-                            <X className="h-4 w-4" />
+                            <X className="h-5 w-5" />
                           </button>
                         </div>
 
                         {isLowStock && (
-                          <div className="mb-2 p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
-                            ⚠️ Omborda faqat {stockQuantity} dona qolgan
+                          <div className="mb-3 p-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700 font-medium">
+                            ⚠️ Only {stockQuantity} in stock
                           </div>
                         )}
 
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs text-gray-500">Birlik narxi</span>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-medium text-gray-500">Unit Price</span>
                           <button
                             onClick={() => openPricePad(item.id)}
-                            className="flex items-center text-sm font-medium text-blue-600 hover:text-blue-700"
+                            className="flex items-center text-sm font-semibold text-blue-600 hover:text-blue-700"
                           >
                             ${item.unitPrice.toFixed(2)}
-                            <Edit3 className="h-3 w-3 ml-1" />
+                            <Calculator className="h-3 w-3 ml-1" />
                           </button>
                         </div>
 
@@ -950,13 +1571,13 @@ export default function POSPage() {
                           <div className="flex items-center space-x-2">
                             <button
                               onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                              className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center hover:bg-gray-300"
+                              className="w-9 h-9 bg-gray-200 rounded-lg flex items-center justify-center hover:bg-gray-300 font-bold"
                             >
                               <Minus className="h-4 w-4" />
                             </button>
                             <button
                               onClick={() => openQuantityPad(item.id)}
-                              className="w-16 h-8 text-center text-sm font-medium bg-white border border-gray-300 rounded hover:bg-gray-50"
+                              className="w-16 h-9 text-center text-sm font-bold bg-white border-2 border-gray-300 rounded-lg hover:border-blue-500"
                             >
                               {item.quantity}
                             </button>
@@ -964,7 +1585,7 @@ export default function POSPage() {
                               onClick={() => updateQuantity(item.id, item.quantity + 1)}
                               disabled={isLowStock}
                               className={clsx(
-                                "w-8 h-8 rounded flex items-center justify-center",
+                                "w-9 h-9 rounded-lg flex items-center justify-center font-bold",
                                 isLowStock
                                   ? "bg-gray-100 text-gray-400 cursor-not-allowed"
                                   : "bg-gray-200 hover:bg-gray-300"
@@ -973,251 +1594,92 @@ export default function POSPage() {
                               <Plus className="h-4 w-4" />
                             </button>
                           </div>
-                          <span className="font-bold text-lg">${item.total.toFixed(2)}</span>
+                          <span className="font-bold text-xl text-gray-900">${item.total.toFixed(2)}</span>
                         </div>
                       </div>
                     );
                   })}
-                  
-                  {/* Cart summary */}
-                  <div className="border-t pt-4">
-                    <div className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span>Jami:</span>
-                        <span>${subtotal.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Soliq (8%):</span>
-                        <span>${taxAmount.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300">
-                        <span>Umumiy:</span>
-                        <span>${total.toFixed(2)}</span>
-                      </div>
-                    </div>
-                    
-                    {/* Customer info in cart */}
-                    {selectedCustomer && (
-                      <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-2">
-                            <User className="h-4 w-4 text-blue-600" />
-                            <span className="text-sm font-medium text-blue-900">
-                              {selectedCustomer.name}
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => setSelectedCustomer(null)}
-                            className="text-blue-600 hover:text-blue-800"
-                          >
-                            <X className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="flex space-x-3 mt-4">
-                      <button
-                        onClick={clearCart}
-                        className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        Tozalash
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShowPayment(true);
-                          setCartVisible(false);
-                        }}
-                        className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-                      >
-                        To'lovga o'tish
-                      </button>
-                    </div>
-                  </div>
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Register Modal - existing code remains the same */}
-      {showRegisterModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Kassani tanlang</h3>
-              <button onClick={() => setShowRegisterModal(false)}>
-                <X className="h-5 w-5" />
-              </button>
-            </div>
             
-            <div className="space-y-3 max-h-96 overflow-auto">
-              {registers.map((register) => (
-                <button
-                  key={register.id}
-                  onClick={() => handleSelectRegister(register)}
-                  className={clsx(
-                    "w-full text-left p-4 rounded-lg border-2 transition-colors",
-                    selectedRegister?.id === register.id
-                      ? "border-blue-600 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
-                  )}
-                >
-                  <div className="font-medium">{register.title}</div>
-                  {register.notes && (
-                    <div className="text-sm text-gray-500 mt-1">{register.notes}</div>
-                  )}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex space-x-3 mt-6">
-              <button
-                onClick={() => setShowRegisterModal(false)}
-                className="flex-1 py-3 border border-gray-300 rounded-lg"
-              >
-                Yopish
-              </button>
-              <button
-                onClick={() => {
-                  setShowRegisterModal(false);
-                  setShowNewRegisterModal(true);
-                }}
-                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold"
-              >
-                Yangi kassa
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* New Register Modal - existing code remains the same */}
-      {showNewRegisterModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Yangi kassa</h3>
-              <button onClick={() => setShowNewRegisterModal(false)}>
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Kassa nomi</label>
-                <input
-                  type="text"
-                  value={newRegisterTitle}
-                  onChange={(e) => setNewRegisterTitle(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg"
-                  placeholder="Kassa nomi"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Izoh</label>
-                <textarea
-                  value={newRegisterNotes}
-                  onChange={(e) => setNewRegisterNotes(e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg"
-                  rows={3}
-                  placeholder="Qo'shimcha ma'lumot"
-                />
-              </div>
-            </div>
-
-            <div className="flex space-x-3 mt-6">
-              <button
-                onClick={() => setShowNewRegisterModal(false)}
-                className="flex-1 py-3 border border-gray-300 rounded-lg"
-              >
-                Bekor qilish
-              </button>
-              <button
-                onClick={createNewRegister}
-                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold"
-              >
-                Yaratish
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Session Modal - existing code remains the same */}
-      {showSessionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">Session ochish</h3>
-            
-            {!selectedRegister ? (
-              <div className="text-center py-8">
-                <p className="text-gray-600 mb-4">Avval kassani tanlang</p>
-                <button
-                  onClick={() => {
-                    setShowSessionModal(false);
-                    setShowRegisterModal(true);
-                  }}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg"
-                >
-                  Kassani tanlash
-                </button>
-              </div>
-            ) : (
-              <>
-                <div className="mb-6 p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600">Kassa:</p>
-                  <p className="font-medium text-lg">{selectedRegister.title}</p>
+            {/* Cart summary */}
+            {cart.length > 0 && (
+              <div className="border-t bg-white p-4 sticky bottom-0">
+                <div className="space-y-2 text-sm mb-4">
+                  <div className="flex justify-between text-gray-600">
+                    <span>Subtotal:</span>
+                    <span className="font-semibold">${subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Tax (8%):</span>
+                    <span className="font-semibold">${taxAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between font-bold text-xl pt-2 border-t-2 border-gray-300 text-gray-900">
+                    <span>Total:</span>
+                    <span>${total.toFixed(2)}</span>
+                  </div>
                 </div>
-
-                <div className="mb-6">
-                  <label className="block text-sm font-medium mb-2">Boshlang'ich balans</label>
-                  <input
-                    type="number"
-                    value={openingBalance}
-                    onChange={(e) => setOpeningBalance(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg"
-                    placeholder="0.00"
-                  />
-                </div>
+                
+                {selectedCustomer && (
+                  <div className="mb-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <User className="h-4 w-4 text-purple-600" />
+                        <span className="text-sm font-semibold text-purple-900">
+                          {selectedCustomer.name}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setSelectedCustomer(null)}
+                        className="text-purple-600 hover:text-purple-800"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex space-x-3">
                   <button
-                    onClick={() => setShowSessionModal(false)}
-                    className="flex-1 py-3 border border-gray-300 rounded-lg"
+                    onClick={clearCart}
+                    className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium"
                   >
-                    Bekor qilish
+                    Clear
                   </button>
                   <button
-                    onClick={startNewSession}
-                    className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold"
+                    onClick={() => {
+                      setShowPayment(true);
+                      setCartVisible(false);
+                    }}
+                    className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg"
                   >
-                    Session ochish
+                    Proceed to Payment
                   </button>
                 </div>
-              </>
+              </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Payment Modal - existing code remains the same */}
+      {/* Payment Modal */}
       {showPayment && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-            <h3 className="text-xl font-bold mb-4">To'lov</h3>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 className="text-2xl font-bold mb-6 text-gray-900">Payment</h3>
 
-            <div className="mb-4">
-              <p className="text-2xl font-bold text-blue-600">${total.toFixed(2)}</p>
+            <div className="mb-6 p-6 bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl text-white">
+              <p className="text-sm opacity-90 mb-1">Total Amount</p>
+              <p className="text-4xl font-bold">${total.toFixed(2)}</p>
             </div>
 
             <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">To'lov usuli</label>
+              <label className="block text-sm font-semibold mb-2 text-gray-700">Payment Method</label>
               <select
                 value={paymentMethod}
                 onChange={(e) => setPaymentMethod(e.target.value)}
-                className="w-full p-3 border border-gray-300 rounded-lg"
+                className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-medium"
               >
                 {paymentMethods.map((method) => (
                   <option key={method.id} value={method.id}>
@@ -1227,26 +1689,35 @@ export default function POSPage() {
               </select>
             </div>
 
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">To'lanadigan summa</label>
+            <div className="mb-6">
+              <label className="block text-sm font-semibold mb-2 text-gray-700">Amount Paid</label>
               <div className="flex space-x-2">
-                <input
-                  type="number"
-                  value={amountPaid}
-                  onChange={(e) => setAmountPaid(e.target.value)}
-                  className="flex-1 p-3 border border-gray-300 rounded-lg"
-                  placeholder={total.toFixed(2)}
-                />
+                <div className="relative flex-1">
+                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={amountPaid}
+                    onChange={(e) => setAmountPaid(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-bold text-lg"
+                    placeholder={total.toFixed(2)}
+                  />
+                </div>
                 <button
                   onClick={openAmountPaidPad}
-                  className="p-3 bg-gray-100 rounded-lg"
+                  className="p-3 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
                 >
-                  <Calculator className="h-5 w-5" />
+                  <Calculator className="h-6 w-6 text-gray-600" />
                 </button>
               </div>
               {amountDue > 0 && (
-                <p className="text-red-600 text-sm mt-2">
-                  Qarz qoldi: ${amountDue.toFixed(2)}
+                <p className="text-red-600 text-sm font-semibold mt-2">
+                  Amount Due: ${amountDue.toFixed(2)}
+                </p>
+              )}
+              {parseFloat(amountPaid || "0") > total && (
+                <p className="text-green-600 text-sm font-semibold mt-2">
+                  Change: ${(parseFloat(amountPaid) - total).toFixed(2)}
                 </p>
               )}
             </div>
@@ -1254,144 +1725,265 @@ export default function POSPage() {
             <div className="flex space-x-3">
               <button
                 onClick={() => setShowPayment(false)}
-                className="flex-1 py-3 border border-gray-300 rounded-lg"
+                className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium"
               >
-                Bekor qilish
+                Cancel
               </button>
               <button
                 onClick={processSale}
-                className="flex-1 py-3 bg-green-600 text-white rounded-lg font-semibold"
+                className="flex-1 py-3 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-lg"
               >
-                Tasdiqlash
+                <div className="flex items-center justify-center space-x-2">
+                  <Check className="w-5 h-5" />
+                  <span>Confirm Sale</span>
+                </div>
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Receipt Modal - existing code remains the same */}
+      {/* Receipt Modal */}
       {showReceipt && lastSale && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Check className="h-8 w-8 text-green-600" />
+              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Check className="h-10 w-10 text-green-600" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                Sotuv muvaffaqiyatli yakunlandi!
+              <h3 className="text-3xl font-bold text-gray-900 mb-2">
+                Sale Completed!
               </h3>
-              <p className="text-gray-600">Chek raqami: {lastSale.receiptNumber}</p>
+              <p className="text-gray-600 font-medium">Receipt #{lastSale.receiptNumber}</p>
             </div>
 
-            <div className="bg-gray-50 p-5 rounded-xl border border-gray-200 mb-6">
-              <div className="text-center mb-4 pb-3 border-b border-gray-300">
-                <h4 className="font-bold text-lg text-gray-900">Demo Restoran</h4>
-                <p className="text-gray-600 text-sm">{lastSale.timestamp.toLocaleString()}</p>
+            <div className="bg-gray-50 p-6 rounded-xl border-2 border-gray-200 mb-6">
+              <div className="text-center mb-4 pb-4 border-b-2 border-gray-300">
+                <h4 className="font-bold text-xl text-gray-900">{company?.name || "Store Name"}</h4>
+                <p className="text-gray-600 text-sm mt-1">
+                  {lastSale.timestamp.toLocaleString()}
+                </p>
+                {selectedRegister && (
+                  <p className="text-gray-500 text-xs mt-1">Register: {selectedRegister.title}</p>
+                )}
               </div>
 
               <div className="space-y-2 mb-4">
                 {lastSale.items.map((item: any) => (
                   <div key={item.id} className="flex justify-between text-sm">
                     <div className="flex-1">
-                      <span className="font-medium">{item.quantity}x {item.name}</span>
+                      <span className="font-semibold">{item.quantity}x {item.name}</span>
+                      <div className="text-xs text-gray-500">@ ${item.unitPrice.toFixed(2)}</div>
                     </div>
-                    <span className="font-medium">${item.total.toFixed(2)}</span>
+                    <span className="font-bold">${item.total.toFixed(2)}</span>
                   </div>
                 ))}
               </div>
 
-              <div className="border-t border-gray-300 pt-3 space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Jami</span>
-                  <span>${lastSale.subtotal.toFixed(2)}</span>
+              <div className="border-t-2 border-gray-300 pt-4 space-y-2 text-sm">
+                <div className="flex justify-between text-gray-700">
+                  <span>Subtotal</span>
+                  <span className="font-semibold">${lastSale.subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between">
-                  <span>Soliq (8%)</span>
-                  <span>${lastSale.taxAmount.toFixed(2)}</span>
+                <div className="flex justify-between text-gray-700">
+                  <span>Tax (8%)</span>
+                  <span className="font-semibold">${lastSale.taxAmount.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-300">
-                  <span>Umumiy</span>
+                <div className="flex justify-between font-bold text-xl pt-2 border-t-2 border-gray-300 text-gray-900">
+                  <span>Total</span>
                   <span>${lastSale.total.toFixed(2)}</span>
                 </div>
+                <div className="flex justify-between text-blue-600 font-semibold">
+                  <span>Paid</span>
+                  <span>${lastSale.amountPaid.toFixed(2)}</span>
+                </div>
                 {lastSale.amountDue > 0 && (
-                  <div className="flex justify-between text-red-600">
-                    <span>Qarz qoldi</span>
+                  <div className="flex justify-between text-red-600 font-semibold">
+                    <span>Amount Due</span>
                     <span>${lastSale.amountDue.toFixed(2)}</span>
                   </div>
                 )}
+                {lastSale.amountPaid > lastSale.total && (
+                  <div className="flex justify-between text-green-600 font-semibold">
+                    <span>Change</span>
+                    <span>${(lastSale.amountPaid - lastSale.total).toFixed(2)}</span>
+                  </div>
+                )}
               </div>
+
+              {lastSale.customer && (
+                <div className="mt-4 pt-4 border-t-2 border-gray-300">
+                  <p className="text-xs text-gray-500 mb-1">Customer</p>
+                  <p className="font-semibold text-gray-900">{lastSale.customer.name}</p>
+                  {lastSale.customer.phone && (
+                    <p className="text-sm text-gray-600">{lastSale.customer.phone}</p>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex space-x-3">
               <button
-                onClick={() => {
-                  // Print functionality would go here
-                  window.print();
-                }}
+                onClick={() => window.print()}
                 className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-semibold transition-colors flex items-center justify-center space-x-2"
               >
-                <Printer className="h-4 w-4" />
-                <span>Chek chop etish</span>
+                <Printer className="h-5 w-5" />
+                <span>Print Receipt</span>
               </button>
               <button
                 onClick={() => setShowReceipt(false)}
-                className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium"
+                className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors font-medium"
               >
-                Yopish
+                Close
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Numberpad Component - existing code remains the same */}
+      {/* Numberpad Component */}
       {showNumberpad && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
-            <h3 className="text-lg font-bold mb-4">
-              {numberpadMode === "cash" ? "Naqd pul" : 
-               numberpadMode === "amount_paid" ? "To'lanadigan summa" :
-               numberpadMode === "quantity" ? "Miqdor" : "Narx"}
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <h3 className="text-xl font-bold mb-4 text-gray-900">
+              {numberpadMode === "amount_paid" ? "Enter Amount Paid" :
+               numberpadMode === "quantity" ? "Enter Quantity" : "Enter Price"}
             </h3>
             
-            <div className="text-2xl font-bold text-center mb-6 p-4 bg-gray-100 rounded-lg">
+            <div className="text-3xl font-bold text-center mb-6 p-5 bg-gray-100 rounded-xl border-2 border-gray-300 text-gray-900">
               {numberpadValue || "0"}
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              {[1,2,3,4,5,6,7,8,9,".",0,"C"].map((num) => (
+            <div className="grid grid-cols-3 gap-3 mb-4">
+              {[1,2,3,4,5,6,7,8,9].map((num) => (
                 <button
                   key={num}
-                  onClick={() => {
-                    if (num === "C") {
-                      setNumberpadValue("");
-                    } else if (num === ".") {
-                      if (!numberpadValue.includes(".")) {
-                        setNumberpadValue(prev => prev + ".");
-                      }
-                    } else {
-                      setNumberpadValue(prev => prev + num);
-                    }
-                  }}
-                  className="p-4 bg-gray-100 rounded-lg text-lg font-medium hover:bg-gray-200"
+                  onClick={() => setNumberpadValue(prev => prev + num)}
+                  className="p-5 bg-gray-100 rounded-xl text-xl font-bold hover:bg-gray-200 active:bg-gray-300 transition-colors"
                 >
                   {num}
                 </button>
               ))}
+              <button
+                onClick={() => {
+                  if (!numberpadValue.includes(".")) {
+                    setNumberpadValue(prev => prev + ".");
+                  }
+                }}
+                className="p-5 bg-gray-100 rounded-xl text-xl font-bold hover:bg-gray-200 active:bg-gray-300 transition-colors"
+              >
+                .
+              </button>
+              <button
+                onClick={() => setNumberpadValue(prev => prev + "0")}
+                className="p-5 bg-gray-100 rounded-xl text-xl font-bold hover:bg-gray-200 active:bg-gray-300 transition-colors"
+              >
+                0
+              </button>
+              <button
+                onClick={() => setNumberpadValue(prev => prev.slice(0, -1))}
+                className="p-5 bg-red-100 text-red-600 rounded-xl text-xl font-bold hover:bg-red-200 active:bg-red-300 transition-colors"
+              >
+                ⌫
+              </button>
             </div>
 
-            <div className="flex space-x-3 mt-4">
+            <div className="flex space-x-3">
               <button
-                onClick={() => setShowNumberpad(false)}
-                className="flex-1 py-3 border border-gray-300 rounded-lg"
+                onClick={() => {
+                  setShowNumberpad(false);
+                  setNumberpadValue("");
+                  setNumberpadMode(null);
+                }}
+                className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium"
               >
-                Bekor qilish
+                Cancel
+              </button>
+              <button
+                onClick={() => setNumberpadValue("")}
+                className="px-4 py-3 bg-orange-100 text-orange-600 rounded-xl font-semibold hover:bg-orange-200"
+              >
+                Clear
               </button>
               <button
                 onClick={handleNumberpadEnter}
-                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-semibold"
+                disabled={!numberpadValue}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Input Prompt Modal */}
+      {inputPrompt.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl animate-scale-in">
+            {/* Icon */}
+            <div className="flex justify-center mb-4">
+              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+                <DollarSign className="w-8 h-8 text-blue-600" />
+              </div>
+            </div>
+
+            <h3 className="text-2xl font-bold text-center mb-3 text-gray-900">
+              {inputPrompt.title}
+            </h3>
+            
+            <p className="text-center text-gray-600 mb-6 whitespace-pre-line">
+              {inputPrompt.message}
+            </p>
+
+            {/* Input Field */}
+            <div className="mb-6">
+              <div className="relative">
+                <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                <input
+                  type={inputPrompt.inputType}
+                  value={promptInputValue}
+                  onChange={(e) => setPromptInputValue(e.target.value)}
+                  placeholder={inputPrompt.placeholder}
+                  className="w-full pl-10 pr-4 py-4 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xl font-bold text-center"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && promptInputValue) {
+                      inputPrompt.onConfirm(promptInputValue);
+                      closePrompt();
+                    } else if (e.key === 'Escape') {
+                      inputPrompt.onCancel?.();
+                      closePrompt();
+                    }
+                  }}
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                Press Enter to confirm, Esc to cancel
+              </p>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => {
+                  inputPrompt.onCancel?.();
+                  closePrompt();
+                }}
+                className="flex-1 py-3 border-2 border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (promptInputValue) {
+                    inputPrompt.onConfirm(promptInputValue);
+                    closePrompt();
+                  }
+                }}
+                disabled={!promptInputValue}
+                className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Confirm
               </button>
             </div>
           </div>
@@ -1404,6 +1996,36 @@ export default function POSPage() {
           -webkit-line-clamp: 2;
           -webkit-box-orient: vertical;
           overflow: hidden;
+        }
+        
+        @keyframes scale-in {
+          from {
+            opacity: 0;
+            transform: scale(0.9);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
+        }
+        
+        .animate-scale-in {
+          animation: scale-in 0.2s ease-out;
+        }
+        
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          .print-receipt, .print-receipt * {
+            visibility: visible;
+          }
+          .print-receipt {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+          }
         }
       `}</style>
     </div>
