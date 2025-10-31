@@ -80,6 +80,7 @@ interface StockPicking {
   updated_at: string;
   state?: string;
   title?: string;
+  notes?: string;
 }
 
 interface StockPickingFormData {
@@ -270,6 +271,103 @@ const inventoryAPI = {
     return response.json();
   },
 
+  // Transfer Actions
+  confirmTransfer: async (pickingId: string): Promise<{ status: string }> => {
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(`${API_URL}/api/v1/stock/pickings/${pickingId}/confirm/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to confirm transfer');
+    }
+    return response.json();
+  },
+
+  completeTransfer: async (pickingId: string): Promise<{ status: string }> => {
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(`${API_URL}/api/v1/stock/pickings/${pickingId}/done/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to complete transfer');
+    }
+    return response.json();
+  },
+
+  cancelTransfer: async (pickingId: string): Promise<{ status: string }> => {
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(`${API_URL}/api/v1/stock/pickings/${pickingId}/cancel/`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to cancel transfer');
+    }
+    return response.json();
+  },
+
+  updateStockPicking: async (pickingId: string, data: StockPickingFormData): Promise<StockPicking> => {
+    const token = localStorage.getItem("access_token");
+
+    const movesData = data.moves.map((move) => ({
+      product: move.product,
+      reserved_quantity: parseFloat(move.reserved_quantity) || 0,
+      price: parseFloat(move.price) || 0,
+    }));
+
+    const requestData = {
+      reference: data.reference,
+      picking_type: data.picking_type,
+      status: data.status,
+      scheduled_date: data.scheduled_date,
+      source_location: data.source_location,
+      destination_location: data.destination_location,
+      notes: data.notes,
+      moves: movesData,
+    };
+
+    const response = await fetch(`${API_URL}/api/v1/stock/pickings/${pickingId}/`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestData),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      let errorMessage = "Stock picking yangilashda xato";
+      if (typeof errorData === "object") {
+        Object.keys(errorData).forEach((key) => {
+          errorMessage += `\n${key}: ${
+            Array.isArray(errorData[key])
+              ? errorData[key].join(", ")
+              : errorData[key]
+          }`;
+        });
+      } else {
+        errorMessage += `: ${JSON.stringify(errorData)}`;
+      }
+      throw new Error(errorMessage);
+    }
+    return response.json();
+  },
+
   // Products API
   getProducts: async (): Promise<Product[]> => {
     const token = localStorage.getItem("access_token");
@@ -371,6 +469,123 @@ function LocationsList({ locations, onEdit, onDelete }) {
   );
 }
 
+function TransfersList({ pickings, products, locations, onViewDetail, onEdit, onConfirm, onComplete, onCancel }) {
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'new': return 'bg-yellow-100 text-yellow-700';
+      case 'confirmed': return 'bg-blue-100 text-blue-700';
+      case 'done': return 'bg-green-100 text-green-700';
+      case 'cancel': return 'bg-red-100 text-red-700';
+      default: return 'bg-gray-100 text-gray-700';
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'incoming': return 'bg-green-50 text-green-700 border-green-200';
+      case 'outgoing': return 'bg-orange-50 text-orange-700 border-orange-200';
+      case 'internal': return 'bg-blue-50 text-blue-700 border-blue-200';
+      default: return 'bg-gray-50 text-gray-700 border-gray-200';
+    }
+  };
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <h3 className="text-lg font-semibold mb-4">Stock Transfers</h3>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Route</th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Products</th>
+              <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200">
+            {pickings.map((picking) => (
+              <tr key={picking.id} className="hover:bg-gray-50">
+                <td className="px-4 py-3">
+                  <div className="font-medium text-gray-900">{picking.reference}</div>
+                  {picking.title && <div className="text-xs text-gray-500">{picking.title}</div>}
+                </td>
+                <td className="px-4 py-3">
+                  <span className={clsx("px-2 py-1 text-xs font-medium rounded border", getTypeColor(picking.picking_type))}>
+                    {picking.picking_type}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  <span className={clsx("px-2 py-1 text-xs font-medium rounded-full", getStatusColor(picking.status))}>
+                    {picking.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-sm text-gray-600">
+                  {picking.scheduled_date ? new Date(picking.scheduled_date).toLocaleDateString() : '-'}
+                </td>
+                <td className="px-4 py-3 text-sm">
+                  <div className="flex items-center space-x-1">
+                    <span className="text-gray-700">{locations.find(l => l.id === picking.source_location)?.name || locations.find(l => l.id === picking.source_location)?.title || '-'}</span>
+                    <span className="text-gray-400">→</span>
+                    <span className="text-gray-700">{locations.find(l => l.id === picking.destination_location)?.name || locations.find(l => l.id === picking.destination_location)?.title || '-'}</span>
+                  </div>
+                </td>
+                <td className="px-4 py-3">
+                  <div className="text-sm text-gray-600">{picking.moves.length} items</div>
+                </td>
+                <td className="px-4 py-3 text-right">
+                  <div className="flex justify-end space-x-2">
+                    <button
+                      onClick={() => onViewDetail(picking)}
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
+                      View
+                    </button>
+                    {picking.status === 'new' && (
+                      <>
+                        <button
+                          onClick={() => onEdit(picking)}
+                          className="text-green-600 hover:text-green-800 text-sm font-medium"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => onConfirm(picking.id)}
+                          className="text-green-600 hover:text-green-800 text-sm font-medium"
+                        >
+                          Confirm
+                        </button>
+                      </>
+                    )}
+                    {picking.status === 'confirmed' && (
+                      <button
+                        onClick={() => onComplete(picking.id)}
+                        className="text-green-600 hover:text-green-800 text-sm font-medium"
+                      >
+                        Complete
+                      </button>
+                    )}
+                    {(picking.status === 'new' || picking.status === 'confirmed') && (
+                      <button
+                        onClick={() => onCancel(picking.id)}
+                        className="text-red-600 hover:text-red-800 text-sm font-medium"
+                      >
+                        Cancel
+                      </button>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function InventoryPage() {
   const { user, selectedCompanyId } = useAuth();
   const [locations, setLocations] = useState<Location[]>([]);
@@ -385,11 +600,13 @@ export default function InventoryPage() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [showTransferDetailModal, setShowTransferDetailModal] = useState(false);
+  const [showTransferEditModal, setShowTransferEditModal] = useState(false);
 
   // Selection states
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedLocation, setSelectedLocation] = useState<Location | null>(null);
   const [selectedTransfer, setSelectedTransfer] = useState<StockPicking | null>(null);
+  const [editingTransfer, setEditingTransfer] = useState<StockPicking | null>(null);
 
   // Form states
   const [locationForm, setLocationForm] = useState({
@@ -403,7 +620,7 @@ export default function InventoryPage() {
     reference: `SM-${Date.now()}`,
     picking_type: "incoming",
     state: "draft",
-    status: "draft",
+    status: "new",
     scheduled_date: new Date().toISOString().split("T")[0],
     source_location: "",
     destination_location: "",
@@ -559,21 +776,15 @@ export default function InventoryPage() {
 
   const handleConfirmTransfer = async (pickingId: string) => {
     try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(`${API_URL}/api/v1/stock/pickings/${pickingId}/confirm/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      await inventoryAPI.confirmTransfer(pickingId);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to confirm transfer');
+      // Update selected transfer status if modal is open
+      if (selectedTransfer && selectedTransfer.id === pickingId) {
+        setSelectedTransfer({ ...selectedTransfer, status: 'confirmed' });
       }
       
       loadData();
+      alert('Transfer confirmed successfully!');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Confirm failed';
       setError(errorMessage);
@@ -583,21 +794,15 @@ export default function InventoryPage() {
 
   const handleCompleteTransfer = async (pickingId: string) => {
     try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(`${API_URL}/api/v1/stock/pickings/${pickingId}/done/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      await inventoryAPI.completeTransfer(pickingId);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to complete transfer');
+      // Update selected transfer status if modal is open
+      if (selectedTransfer && selectedTransfer.id === pickingId) {
+        setSelectedTransfer({ ...selectedTransfer, status: 'done' });
       }
       
       loadData();
+      alert('Transfer completed successfully!');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Complete failed';
       setError(errorMessage);
@@ -609,25 +814,86 @@ export default function InventoryPage() {
     if (!confirm('Are you sure you want to cancel this transfer?')) return;
     
     try {
-      const token = localStorage.getItem("access_token");
-      const response = await fetch(`${API_URL}/api/v1/stock/pickings/${pickingId}/cancel/`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
+      await inventoryAPI.cancelTransfer(pickingId);
       
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || 'Failed to cancel transfer');
+      // Update selected transfer status if modal is open
+      if (selectedTransfer && selectedTransfer.id === pickingId) {
+        setSelectedTransfer({ ...selectedTransfer, status: 'cancel' });
       }
       
       loadData();
+      alert('Transfer cancelled successfully!');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Cancel failed';
       setError(errorMessage);
       alert(errorMessage);
+    }
+  };
+
+  const handleEditTransfer = (picking: StockPicking) => {
+    setEditingTransfer(picking);
+    setStockPickingForm({
+      reference: picking.reference,
+      picking_type: picking.picking_type,
+      state: picking.state || 'draft',
+      status: picking.status,
+      scheduled_date: picking.scheduled_date,
+      source_location: picking.source_location,
+      destination_location: picking.destination_location,
+      notes: picking.notes || '',
+      moves: picking.moves.map(move => ({
+        product: move.product,
+        reserved_quantity: move.reserved_quantity,
+        price: move.price,
+      })),
+    });
+    setShowTransferEditModal(true);
+  };
+
+  const handleUpdateStockPicking = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTransfer) return;
+
+    try {
+      if (!stockPickingForm.moves[0].product) {
+        alert("Please select a product!");
+        return;
+      }
+
+      if (!stockPickingForm.source_location || !stockPickingForm.destination_location) {
+        alert("Please select source and destination locations!");
+        return;
+      }
+
+      await inventoryAPI.updateStockPicking(editingTransfer.id, stockPickingForm);
+
+      setShowTransferEditModal(false);
+      setEditingTransfer(null);
+      setStockPickingForm({
+        reference: `SM-${Date.now()}`,
+        picking_type: "incoming",
+        state: "draft",
+        status: "new",
+        scheduled_date: new Date().toISOString().split("T")[0],
+        source_location: "",
+        destination_location: "",
+        notes: "",
+        moves: [
+          {
+            product: "",
+            reserved_quantity: "0",
+            price: "0",
+          },
+        ],
+      });
+
+      loadData();
+      alert('Transfer updated successfully!');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : "Stock move yangilashda xatolik";
+      setError(errorMessage);
+      alert(errorMessage);
+      console.error("Stock picking update error:", err);
     }
   };
 
@@ -656,7 +922,7 @@ export default function InventoryPage() {
         reference: `SM-${Date.now()}`,
         picking_type: "incoming",
         state: "draft",
-        status: "draft",
+        status: "new",
         scheduled_date: new Date().toISOString().split("T")[0],
         source_location: "",
         destination_location: "",
@@ -688,116 +954,6 @@ export default function InventoryPage() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-lg">Loading...</div>
-      </div>
-    );
-  }
-
-  // Transfers List View
-  function TransfersList({ pickings, products, locations, onViewDetail, onConfirm, onComplete, onCancel }) {
-    const getStatusColor = (status: string) => {
-      switch (status) {
-        case 'draft': return 'bg-yellow-100 text-yellow-700';
-        case 'confirmed': return 'bg-blue-100 text-blue-700';
-        case 'done': return 'bg-green-100 text-green-700';
-        case 'cancel': return 'bg-red-100 text-red-700';
-        default: return 'bg-gray-100 text-gray-700';
-      }
-    };
-
-    const getTypeColor = (type: string) => {
-      switch (type) {
-        case 'incoming': return 'bg-green-50 text-green-700 border-green-200';
-        case 'outgoing': return 'bg-orange-50 text-orange-700 border-orange-200';
-        case 'internal': return 'bg-blue-50 text-blue-700 border-blue-200';
-        default: return 'bg-gray-50 text-gray-700 border-gray-200';
-      }
-    };
-
-    return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-        <h3 className="text-lg font-semibold mb-4">Stock Transfers</h3>
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reference</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Route</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Products</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {pickings.map((picking) => (
-                <tr key={picking.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900">{picking.reference}</div>
-                    {picking.title && <div className="text-xs text-gray-500">{picking.title}</div>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={clsx("px-2 py-1 text-xs font-medium rounded border", getTypeColor(picking.picking_type))}>
-                      {picking.picking_type}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={clsx("px-2 py-1 text-xs font-medium rounded-full", getStatusColor(picking.status))}>
-                      {picking.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {picking.scheduled_date ? new Date(picking.scheduled_date).toLocaleDateString() : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <div className="flex items-center space-x-1">
-                      <span className="text-gray-700">{locations.find(l => l.id === picking.source_location)?.name || locations.find(l => l.id === picking.source_location)?.title || '-'}</span>
-                      <span className="text-gray-400">→</span>
-                      <span className="text-gray-700">{locations.find(l => l.id === picking.destination_location)?.name || locations.find(l => l.id === picking.destination_location)?.title || '-'}</span>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="text-sm text-gray-600">{picking.moves.length} items</div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex justify-end space-x-2">
-                      <button
-                        onClick={() => onViewDetail(picking)}
-                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                      >
-                        View
-                      </button>
-                      {picking.status === 'draft' && (
-                        <button
-                          onClick={() => onConfirm(picking.id)}
-                          className="text-green-600 hover:text-green-800 text-sm font-medium"
-                        >
-                          Confirm
-                        </button>
-                      )}
-                      {picking.status === 'confirmed' && (
-                        <button
-                          onClick={() => onComplete(picking.id)}
-                          className="text-green-600 hover:text-green-800 text-sm font-medium"
-                        >
-                          Complete
-                        </button>
-                      )}
-                      {(picking.status === 'draft' || picking.status === 'confirmed') && (
-                        <button
-                          onClick={() => onCancel(picking.id)}
-                          className="text-red-600 hover:text-red-800 text-sm font-medium"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
       </div>
     );
   }
@@ -889,156 +1045,87 @@ export default function InventoryPage() {
           </div>
 
           {/* Main Content */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Stock Levels */}
-            <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Stock Levels
-                </h3>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Product
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Current Stock
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Unit Cost
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Total Value
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {products.map((product) => {
-                      const productValue = product.stockQuantity * product.cost;
-
-                      return (
-                        <tr key={product.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {product.name}
-                            </div>
-                            <div className="text-sm text-gray-500">
-                              {product.sku}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-semibold text-gray-900">
-                              {product.stockQuantity}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">
-                              ${product.cost.toFixed(2)}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-semibold text-gray-900">
-                              ${isNaN(productValue) ? "0.00" : productValue.toFixed(2)}
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <button
-                              onClick={() => {
-                                setSelectedProduct(product);
-                                setStockPickingForm((prev) => ({
-                                  ...prev,
-                                  moves: [
-                                    {
-                                      ...prev.moves[0],
-                                      product: product.id,
-                                    },
-                                  ],
-                                }));
-                                setShowAdjustmentModal(true);
-                              }}
-                              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                            >
-                              Adjust Stock
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Stock Levels
+              </h3>
             </div>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Product
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Current Stock
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Unit Cost
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Total Value
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {products.map((product) => {
+                    const productValue = product.stockQuantity * product.cost;
 
-            {/* Recent Activity */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Recent Activity
-                </h3>
-              </div>
-              <div className="p-6">
-                <div className="space-y-4">
-                  {[...stockPickings, ...stockAdjustments]
-                    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                    .slice(0, 5)
-                    .map((item) => {
-                      const isPicking = 'picking_type' in item;
-                      const type = isPicking ? (item as StockPicking).picking_type : 'adjustment';
-                      const isIncoming = isPicking ? type === 'incoming' : parseFloat((item as StockAdjustment).quantity) > 0;
-
-                      return (
-                        <div
-                          key={item.id}
-                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
-                        >
-                          <div className="flex items-center space-x-3">
-                            <div
-                              className={clsx(
-                                "w-8 h-8 rounded-full flex items-center justify-center",
-                                isIncoming ? "bg-green-100" : "bg-red-100"
-                              )}
-                            >
-                              {isIncoming ? (
-                                <TrendingUp className="h-4 w-4 text-green-600" />
-                              ) : (
-                                <Package className="h-4 w-4 text-red-600" />
-                              )}
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
-                                {isPicking 
-                                  ? (item as StockPicking).reference 
-                                  : `Stock Adjustment (${(item as StockAdjustment).reason})`}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                {type}
-                              </p>
-                            </div>
+                    return (
+                      <tr key={product.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">
+                            {product.name}
                           </div>
-                          <div className="text-right">
-                            <p
-                              className={clsx(
-                                "text-sm font-semibold",
-                                isIncoming ? "text-green-600" : "text-red-600"
-                              )}
-                            >
-                              {isIncoming ? "+" : "-"}
-                            </p>
-                            <p className="text-xs text-gray-500">
-                              {new Date(item.created_at).toLocaleDateString()}
-                            </p>
+                          <div className="text-sm text-gray-500">
+                            {product.sku}
                           </div>
-                        </div>
-                      );
-                    })}
-                </div>
-              </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-semibold text-gray-900">
+                            {product.stockQuantity}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm text-gray-900">
+                            ${product.cost.toFixed(2)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-semibold text-gray-900">
+                            ${isNaN(productValue) ? "0.00" : productValue.toFixed(2)}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => {
+                              setSelectedProduct(product);
+                              setStockPickingForm((prev) => ({
+                                ...prev,
+                                moves: [
+                                  {
+                                    ...prev.moves[0],
+                                    product: product.id,
+                                  },
+                                ],
+                              }));
+                              setShowAdjustmentModal(true);
+                            }}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            Adjust Stock
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           </div>
         </>
@@ -1059,6 +1146,7 @@ export default function InventoryPage() {
             products={products} 
             locations={locations}
             onViewDetail={handleViewTransferDetail}
+            onEdit={handleEditTransfer}
             onConfirm={handleConfirmTransfer}
             onComplete={handleCompleteTransfer}
             onCancel={handleCancelTransfer}
@@ -1308,6 +1396,162 @@ export default function InventoryPage() {
         </div>
       )}
 
+      {/* Edit Transfer Modal */}
+      {showTransferEditModal && editingTransfer && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Edit Stock Transfer</h3>
+              <button onClick={() => setShowTransferEditModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <form onSubmit={handleUpdateStockPicking} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Reference</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={stockPickingForm.reference} 
+                  onChange={e => setStockPickingForm(f => ({ ...f, reference: e.target.value }))} 
+                  className="w-full border rounded-lg px-3 py-2" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                <select 
+                  required 
+                  value={stockPickingForm.picking_type} 
+                  onChange={e => setStockPickingForm(f => ({ ...f, picking_type: e.target.value }))} 
+                  className="w-full border rounded-lg px-3 py-2"
+                >
+                  <option value="incoming">Incoming</option>
+                  <option value="outgoing">Outgoing</option>
+                  <option value="internal">Internal</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Source Location</label>
+                  <select 
+                    required 
+                    value={stockPickingForm.source_location} 
+                    onChange={e => setStockPickingForm(f => ({ ...f, source_location: e.target.value }))} 
+                    className="w-full border rounded-lg px-3 py-2"
+                  >
+                    <option value="">Select</option>
+                    {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name || loc.title}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Destination Location</label>
+                  <select 
+                    required 
+                    value={stockPickingForm.destination_location} 
+                    onChange={e => setStockPickingForm(f => ({ ...f, destination_location: e.target.value }))} 
+                    className="w-full border rounded-lg px-3 py-2"
+                  >
+                    <option value="">Select</option>
+                    {locations.map(loc => <option key={loc.id} value={loc.id}>{loc.name || loc.title}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled Date</label>
+                <input 
+                  type="date" 
+                  value={stockPickingForm.scheduled_date} 
+                  onChange={e => setStockPickingForm(f => ({ ...f, scheduled_date: e.target.value }))} 
+                  className="w-full border rounded-lg px-3 py-2" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Products</label>
+                {stockPickingForm.moves.map((move, idx) => (
+                  <div key={idx} className="flex space-x-2 mb-2">
+                    <select 
+                      required 
+                      value={move.product} 
+                      onChange={e => {
+                        const moves = [...stockPickingForm.moves];
+                        moves[idx].product = e.target.value;
+                        setStockPickingForm(f => ({ ...f, moves }));
+                      }} 
+                      className="flex-1 border rounded-lg px-2 py-1"
+                    >
+                      <option value="">Select Product</option>
+                      {products.map(prod => <option key={prod.id} value={prod.id}>{prod.name}</option>)}
+                    </select>
+                    <input 
+                      type="number" 
+                      required 
+                      min="0" 
+                      step="0.01" 
+                      value={move.reserved_quantity} 
+                      onChange={e => {
+                        const moves = [...stockPickingForm.moves];
+                        moves[idx].reserved_quantity = e.target.value;
+                        setStockPickingForm(f => ({ ...f, moves }));
+                      }} 
+                      placeholder="Qty" 
+                      className="w-24 border rounded-lg px-2 py-1" 
+                    />
+                    <input 
+                      type="number" 
+                      required 
+                      min="0" 
+                      step="0.01" 
+                      value={move.price} 
+                      onChange={e => {
+                        const moves = [...stockPickingForm.moves];
+                        moves[idx].price = e.target.value;
+                        setStockPickingForm(f => ({ ...f, moves }));
+                      }} 
+                      placeholder="Price" 
+                      className="w-24 border rounded-lg px-2 py-1" 
+                    />
+                    {stockPickingForm.moves.length > 1 && (
+                      <button 
+                        type="button" 
+                        onClick={() => {
+                          const moves = stockPickingForm.moves.filter((_, i) => i !== idx);
+                          setStockPickingForm(f => ({ ...f, moves }));
+                        }} 
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button 
+                  type="button" 
+                  onClick={() => setStockPickingForm(f => ({ ...f, moves: [...f.moves, { product: '', reserved_quantity: '', price: '' }] }))} 
+                  className="text-blue-600 hover:text-blue-800 text-sm font-medium mt-2"
+                >
+                  + Add Product
+                </button>
+              </div>
+              <div className="flex justify-end space-x-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowTransferEditModal(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  Update Transfer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Transfer Detail Modal */}
       {showTransferDetailModal && selectedTransfer && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -1334,7 +1578,7 @@ export default function InventoryPage() {
                   <p className="mt-1">
                     <span className={clsx(
                       "px-2 py-1 text-xs font-medium rounded-full",
-                      selectedTransfer.status === 'draft' ? 'bg-yellow-100 text-yellow-700' :
+                      selectedTransfer.status === 'new' ? 'bg-yellow-100 text-yellow-700' :
                       selectedTransfer.status === 'confirmed' ? 'bg-blue-100 text-blue-700' :
                       selectedTransfer.status === 'done' ? 'bg-green-100 text-green-700' :
                       'bg-red-100 text-red-700'
@@ -1402,46 +1646,36 @@ export default function InventoryPage() {
 
               {/* Action Buttons */}
               <div className="flex justify-end space-x-3 pt-4 border-t">
-                {selectedTransfer.status === 'draft' && (
-                  <button
-                    onClick={() => {
-                      handleConfirmTransfer(selectedTransfer.id);
-                      setShowTransferDetailModal(false);
-                    }}
-                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
-                  >
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    <span>Confirm Transfer</span>
-                  </button>
+                {selectedTransfer.status === 'new' && (
+                  <>
+                    <button
+                      onClick={() => handleEditTransfer(selectedTransfer)}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                    >
+                      Edit Transfer
+                    </button>
+                    <button
+                      onClick={() => handleConfirmTransfer(selectedTransfer.id)}
+                      className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                    >
+                      Confirm Transfer
+                    </button>
+                  </>
                 )}
                 {selectedTransfer.status === 'confirmed' && (
                   <button
-                    onClick={() => {
-                      handleCompleteTransfer(selectedTransfer.id);
-                      setShowTransferDetailModal(false);
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
+                    onClick={() => handleCompleteTransfer(selectedTransfer.id)}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
                   >
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span>Complete Transfer</span>
+                    Complete Transfer
                   </button>
                 )}
-                {(selectedTransfer.status === 'draft' || selectedTransfer.status === 'confirmed') && (
+                {(selectedTransfer.status === 'new' || selectedTransfer.status === 'confirmed') && (
                   <button
-                    onClick={() => {
-                      handleCancelTransfer(selectedTransfer.id);
-                      setShowTransferDetailModal(false);
-                    }}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center space-x-2"
+                    onClick={() => handleCancelTransfer(selectedTransfer.id)}
+                    className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
                   >
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    <span>Cancel Transfer</span>
+                    Cancel Transfer
                   </button>
                 )}
                 {selectedTransfer.status === 'done' && (

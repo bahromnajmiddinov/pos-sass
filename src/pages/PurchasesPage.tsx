@@ -260,16 +260,34 @@ export default function PurchasesPage() {
     try {
       const token = localStorage.getItem("access_token");
       
+      // Normalize supplier to a plain UUID string per API schema
+      let supplierId = purchaseData.supplier as unknown as string;
+      try {
+        // Handle accidental JSON-stringified or array-wrapped values
+        if (typeof supplierId === 'string' && supplierId.startsWith('[')) {
+          const parsed = JSON.parse(supplierId);
+          if (Array.isArray(parsed) && parsed.length > 0) supplierId = String(parsed[0]);
+        } else if (typeof supplierId === 'string' && supplierId.startsWith('{')) {
+          const parsed = JSON.parse(supplierId);
+          if (parsed?.id) supplierId = String(parsed.id);
+        }
+      } catch {}
+
+      // Coerce scheduled_date to ISO datetime (backend expects date-time)
+      const sched = purchaseData.scheduled_date
+        ? new Date(purchaseData.scheduled_date).toISOString()
+        : new Date().toISOString();
+
       // Prepare the data according to API requirements
       const requestData = {
-        supplier: purchaseData.supplier,
+        supplier: supplierId,
         items: purchaseData.items.map(item => ({
-          product: item.product,
-          quantity: parseInt(item.quantity.toString()),
-          cost_price: item.cost_price,
+          product: String(item.product),
+          quantity: parseInt(item.quantity.toString(), 10) || 0,
+          cost_price: String(item.cost_price ?? "0"),
           notes: item.notes || ""
         })),
-        scheduled_date: purchaseData.scheduled_date || new Date().toISOString(),
+        scheduled_date: sched,
       };
 
       console.log("Sending purchase order data:", requestData);
@@ -674,10 +692,11 @@ export default function PurchasesPage() {
                 e.preventDefault();
                 const formData = new FormData(e.target as HTMLFormElement);
                 
+                const supplierRaw = formData.get("supplier");
                 const purchaseData: PurchaseOrderFormData = {
-                  supplier: formData.get("supplier") as string,
+                  supplier: (supplierRaw ?? "") as string,
                   items: purchaseItems,
-                  scheduled_date: formData.get("expectedDate") as string || new Date().toISOString(),
+                  scheduled_date: (formData.get("expectedDate") as string) || new Date().toISOString(),
                 };
 
                 await createPurchaseOrder(purchaseData);
