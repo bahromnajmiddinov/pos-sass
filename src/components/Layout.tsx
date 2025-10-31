@@ -1,4 +1,3 @@
-// components/Layout.tsx
 import React, { useState } from "react";
 import { Link, Outlet, useLocation, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
@@ -12,7 +11,7 @@ import {
   LogOut,
   Menu,
   X,
-  Store,
+  Zap,
   CreditCard,
   UserCheck,
   Truck,
@@ -27,7 +26,6 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 
-// Navigation items with translation keys
 const navigation = [
   {
     name: "dashboard",
@@ -103,14 +101,12 @@ const navigation = [
   },
 ];
 
-// Language options
 const languages = [
   { code: "en", name: "English", nativeName: "English" },
   { code: "uz", name: "Uzbek", nativeName: "O'zbekcha" },
   { code: "ru", name: "Russian", nativeName: "Русский" },
 ];
 
-// User display name ni olish uchun helper function
 const getUserDisplayName = (user: any) => {
   if (user?.name) {
     return user.name;
@@ -121,13 +117,11 @@ const getUserDisplayName = (user: any) => {
   return user?.username || user?.email || "User";
 };
 
-// User initial ni olish uchun helper function
 const getUserInitial = (user: any) => {
   const displayName = getUserDisplayName(user);
   return displayName.charAt(0).toUpperCase();
 };
 
-// User role ni olish uchun helper function
 const getUserRole = (user: any) => {
   return user?.role || user?.billing_role || "user";
 };
@@ -157,7 +151,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="h-screen bg-gray-50 flex overflow-hidden">
+    <div className="h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 flex overflow-hidden">
       {/* Mobile sidebar */}
       <div
         className={clsx(
@@ -166,14 +160,14 @@ export default function Layout() {
         )}
       >
         <div
-          className="fixed inset-0 bg-gray-600 bg-opacity-75"
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
-        <div className="relative flex-1 flex flex-col max-w-xs w-full pt-5 pb-4 bg-white">
+        <div className="relative flex-1 flex flex-col max-w-xs w-full pt-5 pb-4 bg-white/95 backdrop-blur-xl border-r border-slate-200/50 shadow-2xl">
           <div className="absolute top-0 right-0 -mr-12 pt-2">
             <button
               type="button"
-              className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white"
+              className="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white/50"
               onClick={() => setSidebarOpen(false)}
             >
               <X className="h-6 w-6 text-white" />
@@ -196,12 +190,12 @@ export default function Layout() {
       {!sidebarHidden && (
         <div
           className={clsx(
-            "hidden md:flex md:flex-shrink-0 transition-all duration-300 ease-in-out z-30 bg-white",
+            "hidden md:flex md:flex-shrink-0 transition-all duration-300 ease-in-out z-30",
             "w-64"
           )}
           style={{ position: 'relative' }}
         >
-          <div className="flex flex-col w-64 h-full">
+          <div className="flex flex-col w-64 h-full bg-white/80 backdrop-blur-xl border-r border-slate-200/50">
             <SidebarContent
               navigation={filteredNavigation}
               location={location}
@@ -220,36 +214,32 @@ export default function Layout() {
       <div className="flex-1 overflow-hidden flex flex-col">
         {/* Mobile header */}
         <div className="md:hidden">
-          <div className="flex items-center justify-between px-4 py-3 bg-white shadow-sm border-b border-gray-200">
+          <div className="flex items-center justify-between px-4 py-4 bg-white/80 backdrop-blur-xl border-b border-slate-200/50">
             <button
               type="button"
-              className="text-gray-500 hover:text-gray-600"
+              className="text-slate-400 hover:text-slate-600 transition-colors"
               onClick={() => setSidebarOpen(true)}
             >
               <Menu className="h-6 w-6" />
             </button>
-            <h1 className="text-lg font-semibold text-gray-900">POS System</h1>
+            <h1 className="text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">Enterprise POS</h1>
             <LanguageSelectorMobile />
           </div>
         </div>
 
-        {/* Desktop header with sidebar toggle */}
-        <div className="hidden md:flex items-center justify-between px-6 py-3 bg-white shadow-sm border-b border-gray-200">
-          <div className="flex items-center">
+        {/* Desktop header */}
+        <div className="hidden md:flex items-center justify-between px-8 py-4 bg-white/80 backdrop-blur-xl border-b border-slate-200/50">
+          <div className="flex items-center space-x-3">
             <button
               type="button"
-              className="text-gray-500 hover:text-gray-600 p-2 rounded-md transition-colors"
+              className="text-slate-400 hover:text-slate-600 p-2 rounded-xl hover:bg-slate-100/50 transition-all duration-200"
               onClick={toggleSidebar}
               title={sidebarHidden ? t('showSidebar') : t('hideSidebar')}
             >
               {sidebarHidden ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
             </button>
-            <span className="ml-2 text-sm text-gray-600">
-              {sidebarHidden ? t('sidebarHidden') : t('sidebarVisible')}
-            </span>
           </div>
-          
-          {/* Language selector for desktop */}
+
           <LanguageSelector />
         </div>
 
@@ -259,8 +249,8 @@ export default function Layout() {
             typeof window !== 'undefined' && window.innerWidth >= 768 && !sidebarHidden ? "ml-1" : ""
           )}
         >
-          <div className="py-6">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8">
+          <div className="py-8">
+            <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-10">
               <Outlet />
             </div>
           </div>
@@ -270,7 +260,6 @@ export default function Layout() {
   );
 }
 
-// Language Selector Component for Desktop
 function LanguageSelector() {
   const { i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
@@ -286,29 +275,29 @@ function LanguageSelector() {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        className="flex items-center space-x-2 px-4 py-2.5 text-sm font-medium text-slate-700 bg-white/50 border border-slate-200/50 rounded-xl shadow-sm hover:bg-white/80 hover:shadow transition-all duration-200 backdrop-blur-sm"
       >
-        <Globe className="h-4 w-4 text-gray-400" />
+        <Globe className="h-4 w-4 text-slate-400" />
         <span>{selectedLanguage?.nativeName}</span>
-        <ChevronDown className="h-4 w-4 text-gray-400" />
+        <ChevronDown className={clsx("h-4 w-4 text-slate-400 transition-transform", isOpen && "rotate-180")} />
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-2 w-48 origin-top-right bg-white border border-gray-200 rounded-md shadow-lg py-1">
+        <div className="absolute right-0 z-50 mt-2 w-48 origin-top-right bg-white/95 backdrop-blur-xl border border-slate-200/50 rounded-xl shadow-xl py-1 overflow-hidden">
           {languages.map((language) => (
             <button
               key={language.code}
               onClick={() => handleLanguageChange(language.code)}
               className={clsx(
-                "block w-full text-left px-4 py-2 text-sm transition-colors",
+                "block w-full text-left px-4 py-2.5 text-sm transition-all",
                 i18n.language === language.code
-                  ? "bg-blue-50 text-blue-700 font-medium"
-                  : "text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+                  ? "bg-blue-50/50 text-blue-600 font-semibold"
+                  : "text-slate-700 hover:bg-slate-50/50 hover:text-slate-900"
               )}
             >
               <div className="flex flex-col">
                 <span>{language.nativeName}</span>
-                <span className="text-xs text-gray-500">{language.name}</span>
+                <span className="text-xs text-slate-500">{language.name}</span>
               </div>
             </button>
           ))}
@@ -318,7 +307,6 @@ function LanguageSelector() {
   );
 }
 
-// Language Selector Component for Mobile
 function LanguageSelectorMobile() {
   const { i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
@@ -334,23 +322,23 @@ function LanguageSelectorMobile() {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center space-x-1 px-2 py-1 text-sm text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+        className="flex items-center space-x-1 px-2.5 py-1.5 text-sm text-slate-700 bg-white/50 border border-slate-200 rounded-lg hover:bg-white/80 transition-all backdrop-blur-sm"
       >
         <Globe className="h-4 w-4" />
-        <span className="text-xs">{selectedLanguage.code.toUpperCase()}</span>
+        <span className="text-xs font-medium">{selectedLanguage.code.toUpperCase()}</span>
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-2 w-32 origin-top-right bg-white border border-gray-200 rounded-md shadow-lg py-1">
+        <div className="absolute right-0 z-50 mt-2 w-32 origin-top-right bg-white/95 backdrop-blur-xl border border-slate-200 rounded-xl shadow-xl py-1">
           {languages.map((language) => (
             <button
               key={language.code}
               onClick={() => handleLanguageChange(language.code)}
               className={clsx(
-                "block w-full text-left px-3 py-2 text-sm transition-colors",
+                "block w-full text-left px-3 py-2 text-sm transition-all",
                 i18n.language === language.code
-                  ? "bg-blue-50 text-blue-700 font-medium"
-                  : "text-gray-700 hover:bg-gray-50"
+                  ? "bg-blue-50/50 text-blue-600 font-semibold"
+                  : "text-slate-700 hover:bg-slate-50"
               )}
             >
               {language.nativeName}
@@ -392,13 +380,11 @@ function SidebarContent({
   const selectedCompany =
     companies.find((c) => c.id === selectedCompanyId) || company;
 
-  // Kompaniya tanlash funksiyasi
   const handleCompanySelect = async (companyId: number) => {
     console.log("Selecting company:", companyId);
     await setSelectedCompany(companyId);
     setShowCompanyDropdown(false);
 
-    // Yangilangan kompaniya ma'lumotlarini ko'rsatish
     const newSelectedCompany = companies.find((c) => c.id === companyId);
     if (newSelectedCompany) {
       console.log("Successfully selected company:", newSelectedCompany.title);
@@ -406,64 +392,60 @@ function SidebarContent({
   };
 
   return (
-    <div className="flex flex-col flex-grow pt-5 pb-4 overflow-y-auto bg-white border-r border-gray-200">
-      <div className="flex items-center justify-between flex-shrink-0 px-4">
-        <div className="flex items-center">
-          <Store className="h-8 w-8 text-blue-600" />
-          <span className="ml-2 text-xl font-bold text-gray-900">POS Demo</span>
+    <div className="flex flex-col flex-grow pt-6 pb-4 overflow-y-auto">
+      <div className="flex items-center justify-between flex-shrink-0 px-6 mb-8">
+        <div className="flex items-center space-x-2">
+          <div className="relative">
+            <Zap className="h-8 w-8 text-blue-600" />
+            <div className="absolute inset-0 blur-lg bg-blue-400/30 -z-10"></div>
+          </div>
+          <div>
+            <span className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">Enterprise</span>
+            <div className="text-xs font-medium text-slate-500 -mt-1">POS System</div>
+          </div>
         </div>
-        <button
-          type="button"
-          className="md:hidden text-gray-500 hover:text-gray-600 p-1 rounded-md transition-colors"
-          onClick={toggleSidebar}
-          title={sidebarHidden ? t('showSidebar') : t('hideSidebar')}
-        >
-          {sidebarHidden ? <Eye className="h-5 w-5" /> : <EyeOff className="h-5 w-5" />}
-        </button>
       </div>
-      
+
       {/* Company selection dropdown */}
-      <div className="mt-5 px-3 relative">
+      <div className="mx-4 mb-6 relative">
         <div
-          className="px-3 py-2 text-sm bg-gray-50 rounded-md cursor-pointer hover:bg-gray-100 transition-colors"
+          className="px-4 py-3 text-sm bg-slate-50/50 backdrop-blur-sm rounded-xl cursor-pointer hover:bg-slate-100/50 transition-all duration-200 border border-slate-200/30"
           onClick={() => setShowCompanyDropdown(!showCompanyDropdown)}
         >
           <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <Building className="h-4 w-4 text-gray-400 mr-2" />
-              <span className="text-gray-900 truncate font-medium">
+            <div className="flex items-center space-x-2 flex-1 min-w-0">
+              <Building className="h-4 w-4 text-slate-400 flex-shrink-0" />
+              <span className="text-slate-900 truncate font-medium">
                 {selectedCompany?.title || t('selectCompany')}
               </span>
             </div>
             <ChevronDown
-              className={`h-4 w-4 text-gray-400 transition-transform ${
-                showCompanyDropdown ? "rotate-180" : ""
-              }`}
+              className={clsx("h-4 w-4 text-slate-400 transition-transform flex-shrink-0", showCompanyDropdown && "rotate-180")}
             />
           </div>
           {selectedCompany?.address && (
-            <p className="text-xs text-gray-500 mt-1 truncate">
+            <p className="text-xs text-slate-500 mt-1 ml-6 truncate">
               {selectedCompany.address}
             </p>
           )}
         </div>
 
-        {/* Company dropdown menu */}
         {showCompanyDropdown && companies.length > 0 && (
-          <div className="absolute top-full left-3 right-3 mt-1 bg-white border border-gray-200 rounded-md shadow-lg z-10 max-h-60 overflow-y-auto">
+          <div className="absolute top-full left-0 right-0 mt-2 bg-white/95 backdrop-blur-xl border border-slate-200/50 rounded-xl shadow-xl z-10 max-h-60 overflow-y-auto">
             {companies.map((companyItem) => (
               <div
                 key={companyItem.id}
-                className={`px-3 py-2 text-sm cursor-pointer transition-colors ${
+                className={clsx(
+                  "px-4 py-3 text-sm cursor-pointer transition-all",
                   selectedCompanyId === companyItem.id
-                    ? "bg-blue-50 text-blue-700"
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
+                    ? "bg-blue-50/50 text-blue-600 font-medium"
+                    : "text-slate-700 hover:bg-slate-50/50"
+                )}
                 onClick={() => handleCompanySelect(companyItem.id)}
               >
                 <div className="font-medium">{companyItem.title}</div>
                 {companyItem.address && (
-                  <div className="text-xs text-gray-500 truncate">
+                  <div className="text-xs text-slate-500 truncate mt-0.5">
                     {companyItem.address}
                   </div>
                 )}
@@ -473,7 +455,7 @@ function SidebarContent({
         )}
       </div>
 
-      <nav className="mt-5 flex-1 px-2 bg-white space-y-1">
+      <nav className="flex-1 px-3 space-y-1">
         {navigation.map((item) => {
           const isActive = location.pathname === item.href;
           return (
@@ -481,47 +463,50 @@ function SidebarContent({
               key={item.name}
               to={item.href}
               className={clsx(
+                "group flex items-center px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
                 isActive
-                  ? "bg-blue-50 border-blue-600 text-blue-700"
-                  : "border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900",
-                "group flex items-center pl-3 pr-2 py-2 border-l-4 text-sm font-medium transition-colors"
+                  ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25"
+                  : "text-slate-600 hover:text-slate-900 hover:bg-slate-100/50"
               )}
             >
               <item.icon
                 className={clsx(
+                  "mr-3 h-5 w-5 transition-all",
                   isActive
-                    ? "text-blue-500"
-                    : "text-gray-400 group-hover:text-gray-500",
-                  "mr-3 h-5 w-5 transition-colors"
+                    ? "text-white"
+                    : "text-slate-400 group-hover:text-slate-600"
                 )}
               />
-              {t(item.name)}
+              <span>{t(item.name)}</span>
+              {isActive && (
+                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-white/60"></div>
+              )}
             </Link>
           );
         })}
       </nav>
 
       {/* User info and logout */}
-      <div className="flex-shrink-0 px-2 py-4 border-t border-gray-200">
-        <div className="flex items-center">
+      <div className="flex-shrink-0 px-4 py-4 border-t border-slate-200/50 mt-4">
+        <div className="flex items-center mb-3 px-2">
           <div className="flex-shrink-0">
-            <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
-              <span className="text-sm font-medium text-white">
+            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+              <span className="text-sm font-bold text-white">
                 {userInitial}
               </span>
             </div>
           </div>
           <div className="ml-3">
-            <p className="text-sm font-medium text-gray-700">{displayName}</p>
-            <p className="text-xs text-gray-500 capitalize">{userRole}</p>
+            <p className="text-sm font-semibold text-slate-900">{displayName}</p>
+            <p className="text-xs text-slate-500 capitalize">{userRole}</p>
           </div>
         </div>
         <button
           onClick={handleLogout}
-          className="mt-3 w-full flex items-center px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors"
+          className="w-full flex items-center px-3 py-2.5 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100/50 rounded-xl transition-all duration-200"
         >
           <LogOut className="mr-3 h-4 w-4" />
-          {t('signOut')}
+          <span>{t('signOut')}</span>
         </button>
       </div>
     </div>
