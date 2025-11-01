@@ -106,7 +106,6 @@ interface CreateStockAdjustmentData {
   location: string;
   quantity: string;
   reason: string;
-  notes: string;
 }
 interface LocationsListProps {
   locations: Location[];
@@ -147,19 +146,52 @@ const inventoryAPI = {
     data: CreateStockAdjustmentData
   ): Promise<StockAdjustment> => {
     const token = localStorage.getItem("access_token");
+
+    // ✅ TO'G'RILANGAN: Backend strukturasiga mos qilish
+    const requestData = {
+      reference: `ADJ-${Date.now()}`, // ✅ Reference qo'shildi
+      location: data.location,
+      status: "draft", // ✅ Status qo'shildi
+      reason: data.reason,
+      scheduled_date: new Date().toISOString(), // ✅ Scheduled date qo'shildi
+      lines: [
+        // ✅ Lines array qo'shildi
+        {
+          product: data.product,
+          counted_quantity: parseFloat(data.quantity) || 0,
+        },
+      ],
+    };
+
+    console.log("Creating stock adjustment with data:", requestData);
+
     const response = await fetch(`${API_URL}/api/v1/stock/adjustments/`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify(requestData),
     });
+
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(
-        `Stock adjustment yaratishda xato: ${JSON.stringify(errorData)}`
-      );
+      console.error("Stock adjustment creation error:", errorData);
+
+      let errorMessage = "Stock adjustment yaratishda xato";
+      if (typeof errorData === "object") {
+        Object.keys(errorData).forEach((key) => {
+          errorMessage += `\n${key}: ${
+            Array.isArray(errorData[key])
+              ? errorData[key].join(", ")
+              : errorData[key]
+          }`;
+        });
+      } else {
+        errorMessage += `: ${JSON.stringify(errorData)}`;
+      }
+
+      throw new Error(errorMessage);
     }
     return response.json();
   },
@@ -1136,12 +1168,17 @@ export default function InventoryPage() {
         return;
       }
 
+      if (!adjustmentForm.reason) {
+        alert("Iltimos, sababni kiriting!");
+        return;
+      }
+
       await inventoryAPI.createStockAdjustment({
         product: adjustmentForm.product,
         location: adjustmentForm.location,
         quantity: adjustmentForm.quantity,
         reason: adjustmentForm.reason,
-        notes: adjustmentForm.notes,
+        // notes ni olib tashlash
       });
 
       setShowAdjustmentModal(false);
@@ -1150,7 +1187,7 @@ export default function InventoryPage() {
         location: "",
         quantity: "",
         reason: "",
-        notes: "",
+        notes: "", // notes saqlansa ham, API ga yuborilmaydi
       });
       setSelectedProduct(null);
 
@@ -2321,12 +2358,13 @@ export default function InventoryPage() {
                 />
               </div>
 
+              {/* Notes ni olib tashlash yoki optional qilish */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Notes
+                  Notes (Optional)
                 </label>
                 <textarea
-                  rows={3}
+                  rows={2}
                   value={adjustmentForm.notes}
                   onChange={(e) =>
                     setAdjustmentForm((prev) => ({
