@@ -6,7 +6,7 @@ info:
 paths:
   /api/v1/billing/invoices/:
     get:
-      operationId: api_v1_billing_invoices_list
+      operationId: billing_invoices_list
       description: |-
         A mixin that filters queryset by the user's companies.
         Works with ModelViewSet and GenericAPIView.
@@ -42,39 +42,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedInvoiceList'
           description: ''
-    post:
-      operationId: api_v1_billing_invoices_create
-      description: |-
-        A mixin that filters queryset by the user's companies.
-        Works with ModelViewSet and GenericAPIView.
-      summary: Create a new invoice
-      tags:
-      - Billing
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Invoice'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Invoice'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Invoice'
-        required: true
-      security:
-      - basicAuth: []
-      - jwtAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Invoice'
-          description: ''
   /api/v1/billing/invoices/{id}/:
     get:
-      operationId: api_v1_billing_invoices_retrieve
+      operationId: billing_invoices_retrieve
       description: |-
         A mixin that filters queryset by the user's companies.
         Works with ModelViewSet and GenericAPIView.
@@ -99,12 +69,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/Invoice'
           description: ''
-    put:
-      operationId: api_v1_billing_invoices_update
-      description: |-
-        A mixin that filters queryset by the user's companies.
-        Works with ModelViewSet and GenericAPIView.
-      summary: Partially update an invoice
+  /api/v1/billing/invoices/{id}/download-pdf/:
+    get:
+      operationId: billing_invoices_download_pdf_retrieve
+      description: Generate and download a professional PDF invoice
+      summary: Download invoice PDF
       parameters:
       - in: path
         name: id
@@ -115,18 +84,6 @@ paths:
         required: true
       tags:
       - Billing
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/Invoice'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Invoice'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/Invoice'
-        required: true
       security:
       - basicAuth: []
       - jwtAuth: []
@@ -137,68 +94,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Invoice'
           description: ''
-    patch:
-      operationId: api_v1_billing_invoices_partial_update
-      description: |-
-        A mixin that filters queryset by the user's companies.
-        Works with ModelViewSet and GenericAPIView.
-      summary: Partially update an invoice
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this invoice.
-        required: true
-      tags:
-      - Billing
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedInvoice'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedInvoice'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedInvoice'
-      security:
-      - basicAuth: []
-      - jwtAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Invoice'
-          description: ''
-    delete:
-      operationId: api_v1_billing_invoices_destroy
-      description: |-
-        A mixin that filters queryset by the user's companies.
-        Works with ModelViewSet and GenericAPIView.
-      summary: Delete an invoice
-      parameters:
-      - in: path
-        name: id
-        schema:
-          type: string
-          format: uuid
-        description: A UUID string identifying this invoice.
-        required: true
-      tags:
-      - Billing
-      security:
-      - basicAuth: []
-      - jwtAuth: []
-      responses:
-        '204':
-          description: No response body
   /api/v1/billing/payments/:
     get:
-      operationId: api_v1_billing_payments_list
+      operationId: billing_payments_list
       description: |-
         A mixin that filters queryset by the user's companies.
         Works with ModelViewSet and GenericAPIView.
@@ -236,7 +134,7 @@ paths:
           description: ''
   /api/v1/billing/payments/{id}/:
     get:
-      operationId: api_v1_billing_payments_retrieve
+      operationId: billing_payments_retrieve
       description: |-
         A mixin that filters queryset by the user's companies.
         Works with ModelViewSet and GenericAPIView.
@@ -263,7 +161,7 @@ paths:
           description: ''
   /api/v1/billing/plans/:
     get:
-      operationId: api_v1_billing_plans_list
+      operationId: billing_plans_list
       summary: List all billing plans
       parameters:
       - name: ordering
@@ -298,7 +196,7 @@ paths:
           description: ''
   /api/v1/billing/plans/{id}/:
     get:
-      operationId: api_v1_billing_plans_retrieve
+      operationId: billing_plans_retrieve
       summary: Retrieve a specific billing plan
       parameters:
       - in: path
@@ -320,9 +218,45 @@ paths:
               schema:
                 $ref: '#/components/schemas/BillingPlan'
           description: ''
+  /api/v1/billing/plans/{id}/subscribe/:
+    post:
+      operationId: billing_plans_subscribe_create
+      description: Subscribe current user to this billing plan
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this billing plan.
+        required: true
+      tags:
+      - billing
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillingPlan'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/BillingPlan'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/BillingPlan'
+        required: true
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingPlan'
+          description: ''
   /api/v1/billing/subscription/:
     get:
-      operationId: api_v1_billing_subscription_retrieve
+      operationId: billing_subscription_retrieve
       description: Return user subscription plan info.
       summary: Get current user's subscription
       tags:
@@ -339,7 +273,7 @@ paths:
           description: ''
   /api/v1/companies/:
     get:
-      operationId: api_v1_companies_list
+      operationId: companies_list
       description: Retrieve a list of all registered companies.
       summary: List all companies
       parameters:
@@ -374,7 +308,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedCompanyList'
           description: ''
     post:
-      operationId: api_v1_companies_create
+      operationId: companies_create
       description: Create a new company with the provided data.
       summary: Create a new company
       tags:
@@ -403,7 +337,7 @@ paths:
           description: ''
   /api/v1/companies/{id}/:
     get:
-      operationId: api_v1_companies_retrieve
+      operationId: companies_retrieve
       description: Retrieve details of a specific company by ID.
       summary: Retrieve a company
       parameters:
@@ -426,7 +360,7 @@ paths:
                 $ref: '#/components/schemas/Company'
           description: ''
     put:
-      operationId: api_v1_companies_update
+      operationId: companies_update
       description: Update all fields of a company by ID.
       summary: Update a company
       parameters:
@@ -461,7 +395,7 @@ paths:
                 $ref: '#/components/schemas/Company'
           description: ''
     patch:
-      operationId: api_v1_companies_partial_update
+      operationId: companies_partial_update
       description: Update one or more fields of a company by ID.
       summary: Partially update a company
       parameters:
@@ -495,7 +429,7 @@ paths:
                 $ref: '#/components/schemas/Company'
           description: ''
     delete:
-      operationId: api_v1_companies_destroy
+      operationId: companies_destroy
       description: Delete a specific company by ID.
       summary: Delete a company
       parameters:
@@ -513,14 +447,452 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/dashboard/customers/insights/:
+    get:
+      operationId: dashboard_customers_insights_list
+      description: Top customers analytics
+      summary: Get top customers
+      parameters:
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 10
+        description: Number of customers
+      tags:
+      - Dashboard
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CustomerInsights'
+          description: ''
+  /api/v1/dashboard/customers/segmentation/:
+    get:
+      operationId: dashboard_customers_segmentation_retrieve
+      description: Recency, Frequency, Monetary analysis
+      summary: RFM Analysis for customer segmentation
+      tags:
+      - Dashboard - Advanced
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/export/:
+    get:
+      operationId: dashboard_export_retrieve
+      description: Export dashboard data to CSV
+      summary: Export dashboard data
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+          default: 30
+      - in: query
+        name: format
+        schema:
+          type: string
+          default: csv
+        description: csv or json
+      - in: query
+        name: report_type
+        schema:
+          type: string
+        description: sales, inventory, customers
+        required: true
+      tags:
+      - Dashboard - Advanced
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/financial/cash-flow/:
+    get:
+      operationId: dashboard_financial_cash_flow_list
+      description: Cash flow analysis
+      summary: Get cash flow data
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+          default: 30
+        description: Number of days
+      tags:
+      - Dashboard
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CashFlow'
+          description: ''
+  /api/v1/dashboard/financial/payment-methods/:
+    get:
+      operationId: dashboard_financial_payment_methods_list
+      description: Payment method distribution
+      summary: Get payment method breakdown
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+          default: 30
+        description: Period in days
+      tags:
+      - Dashboard
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentMethodBreakdown'
+          description: ''
+  /api/v1/dashboard/financial/profit-loss/:
+    get:
+      operationId: dashboard_financial_profit_loss_retrieve
+      description: Profit & Loss statement
+      summary: Get profit and loss statement
+      parameters:
+      - in: query
+        name: end_date
+        schema:
+          type: string
+        description: End date (YYYY-MM-DD)
+      - in: query
+        name: period
+        schema:
+          type: string
+        description: 'Quick period: month, quarter, year'
+      - in: query
+        name: start_date
+        schema:
+          type: string
+        description: Start date (YYYY-MM-DD)
+      tags:
+      - Dashboard
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfitLoss'
+          description: ''
+  /api/v1/dashboard/forecast/:
+    get:
+      operationId: dashboard_forecast_retrieve
+      description: Simple sales forecasting using moving average
+      summary: Sales forecast
+      parameters:
+      - in: query
+        name: forecast_days
+        schema:
+          type: integer
+          default: 30
+        description: Days to forecast
+      - in: query
+        name: historical_days
+        schema:
+          type: integer
+          default: 90
+        description: Historical data period
+      tags:
+      - Dashboard - Advanced
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/inventory/movements/:
+    get:
+      operationId: dashboard_inventory_movements_retrieve
+      description: Stock movement summary
+      summary: Get stock movement summary
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+          default: 30
+        description: Period in days
+      tags:
+      - Dashboard
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockMovement'
+          description: ''
+  /api/v1/dashboard/inventory/status/:
+    get:
+      operationId: dashboard_inventory_status_retrieve
+      description: Inventory health metrics
+      summary: Get inventory status
+      tags:
+      - Dashboard
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventoryStatus'
+          description: ''
+  /api/v1/dashboard/overview/:
+    get:
+      operationId: dashboard_overview_retrieve
+      description: Main dashboard overview with key metrics
+      summary: Get dashboard overview
+      parameters:
+      - in: query
+        name: period
+        schema:
+          type: string
+          default: month
+        description: 'Period: today, week, month, year'
+      tags:
+      - Dashboard
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardOverview'
+          description: ''
+  /api/v1/dashboard/pos/registers/:
+    get:
+      operationId: dashboard_pos_registers_list
+      description: Register/POS terminal performance
+      summary: Get register performance metrics
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+          default: 30
+        description: Period in days
+      tags:
+      - Dashboard
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RegisterPerformance'
+          description: ''
+  /api/v1/dashboard/pos/sessions/:
+    get:
+      operationId: dashboard_pos_sessions_list
+      description: POS session summaries
+      summary: Get session summaries
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+          default: 7
+        description: Period in days
+      - in: query
+        name: status
+        schema:
+          type: string
+        description: 'Filter by status: opened, closed'
+      tags:
+      - Dashboard
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SessionSummary'
+          description: ''
+  /api/v1/dashboard/products/abc-analysis/:
+    get:
+      operationId: dashboard_products_abc_analysis_retrieve
+      description: ABC Analysis - Product performance classification
+      summary: ABC Analysis for product performance
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+          default: 90
+      tags:
+      - Dashboard - Advanced
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/sales/by-category/:
+    get:
+      operationId: dashboard_sales_by_category_list
+      description: Category performance metrics
+      summary: Get category performance
+      tags:
+      - Dashboard
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryPerformance'
+          description: ''
+  /api/v1/dashboard/sales/comparison/:
+    get:
+      operationId: dashboard_sales_comparison_retrieve
+      description: Compare sales across different periods
+      summary: Compare sales between periods
+      parameters:
+      - in: query
+        name: period
+        schema:
+          type: string
+          default: month
+        description: week, month, year
+      tags:
+      - Dashboard - Advanced
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/sales/peak-hours/:
+    get:
+      operationId: dashboard_sales_peak_hours_retrieve
+      description: Analyze peak hours for sales
+      summary: Hourly sales analysis
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+          default: 30
+      tags:
+      - Dashboard - Advanced
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/v1/dashboard/sales/top-products/:
+    get:
+      operationId: dashboard_sales_top_products_list
+      description: Top selling products
+      summary: Get top selling products
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+          default: 30
+        description: Period in days
+      - in: query
+        name: limit
+        schema:
+          type: integer
+          default: 10
+        description: Number of products
+      tags:
+      - Dashboard
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TopProduct'
+          description: ''
+  /api/v1/dashboard/sales/trend/:
+    get:
+      operationId: dashboard_sales_trend_list
+      description: Sales trend over time
+      summary: Get sales trend
+      parameters:
+      - in: query
+        name: days
+        schema:
+          type: integer
+          default: 30
+        description: Number of days
+      tags:
+      - Dashboard
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SalesTrend'
+          description: ''
   /api/v1/jwt/create/:
     post:
-      operationId: api_v1_jwt_create_create
+      operationId: jwt_create_create
       description: |-
         Takes a set of user credentials and returns an access and refresh JSON web
         token pair to prove the authentication of those credentials.
       tags:
-      - api
+      - jwt
       requestBody:
         content:
           application/json:
@@ -542,12 +914,12 @@ paths:
           description: ''
   /api/v1/jwt/refresh/:
     post:
-      operationId: api_v1_jwt_refresh_create
+      operationId: jwt_refresh_create
       description: |-
         Takes a refresh type JSON web token and returns an access type JSON web
         token if the refresh token is valid.
       tags:
-      - api
+      - jwt
       requestBody:
         content:
           application/json:
@@ -569,12 +941,12 @@ paths:
           description: ''
   /api/v1/jwt/verify/:
     post:
-      operationId: api_v1_jwt_verify_create
+      operationId: jwt_verify_create
       description: |-
         Takes a token and indicates if it is valid.  This view provides no
         information about a token's fitness for a particular use.
       tags:
-      - api
+      - jwt
       requestBody:
         content:
           application/json:
@@ -596,7 +968,7 @@ paths:
           description: ''
   /api/v1/partners/:
     get:
-      operationId: api_v1_partners_list
+      operationId: partners_list
       description: Retrieve a list of all active partner records.
       summary: List all active partners
       parameters:
@@ -651,7 +1023,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedPartnerList'
           description: ''
     post:
-      operationId: api_v1_partners_create
+      operationId: partners_create
       description: Create a new partner record with the provided data.
       summary: Create a new partner
       tags:
@@ -680,7 +1052,7 @@ paths:
           description: ''
   /api/v1/partners/{id}/:
     get:
-      operationId: api_v1_partners_retrieve
+      operationId: partners_retrieve
       description: Retrieve the details of a specific active partner by ID.
       summary: Retrieve a partner
       parameters:
@@ -704,7 +1076,7 @@ paths:
                 $ref: '#/components/schemas/Partner'
           description: ''
     put:
-      operationId: api_v1_partners_update
+      operationId: partners_update
       description: Fully update a partner record by ID.
       summary: Update a partner
       parameters:
@@ -740,7 +1112,7 @@ paths:
                 $ref: '#/components/schemas/Partner'
           description: ''
     patch:
-      operationId: api_v1_partners_partial_update
+      operationId: partners_partial_update
       description: Update one or more fields of a partner record.
       summary: Partially update a partner
       parameters:
@@ -775,7 +1147,7 @@ paths:
                 $ref: '#/components/schemas/Partner'
           description: ''
     delete:
-      operationId: api_v1_partners_destroy
+      operationId: partners_destroy
       description: Delete (deactivate) a specific partner by ID.
       summary: Delete a partner
       parameters:
@@ -796,7 +1168,7 @@ paths:
           description: No response body
   /api/v1/payments/:
     get:
-      operationId: api_v1_payments_list
+      operationId: payments_list
       description: Retrieve a list of all active product Payments.
       summary: List all active Payments
       parameters:
@@ -831,7 +1203,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedPaymentList'
           description: ''
     post:
-      operationId: api_v1_payments_create
+      operationId: payments_create
       description: Create a new product Payment.
       summary: Create a new Payment
       tags:
@@ -860,7 +1232,7 @@ paths:
           description: ''
   /api/v1/payments/{id}/:
     get:
-      operationId: api_v1_payments_retrieve
+      operationId: payments_retrieve
       description: Retrieve details of a specific active Payment by ID.
       summary: Retrieve a Payment
       parameters:
@@ -884,7 +1256,7 @@ paths:
                 $ref: '#/components/schemas/Payment'
           description: ''
     put:
-      operationId: api_v1_payments_update
+      operationId: payments_update
       description: Fully update a product Payment by ID.
       summary: Update a Payment
       parameters:
@@ -920,7 +1292,7 @@ paths:
                 $ref: '#/components/schemas/Payment'
           description: ''
     patch:
-      operationId: api_v1_payments_partial_update
+      operationId: payments_partial_update
       description: Partially update a product Payment.
       summary: Partially update a Payment
       parameters:
@@ -955,7 +1327,7 @@ paths:
                 $ref: '#/components/schemas/Payment'
           description: ''
     delete:
-      operationId: api_v1_payments_destroy
+      operationId: payments_destroy
       description: Delete a product Payment by ID.
       summary: Delete a Payment
       parameters:
@@ -976,7 +1348,7 @@ paths:
           description: No response body
   /api/v1/payments/currency/:
     get:
-      operationId: api_v1_payments_currency_list
+      operationId: payments_currency_list
       description: Retrieve a list of all active Currencies.
       summary: List all active Currencies
       parameters:
@@ -1011,7 +1383,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedCurrencyList'
           description: ''
     post:
-      operationId: api_v1_payments_currency_create
+      operationId: payments_currency_create
       description: Create a new Currency.
       summary: Create a new Currency
       tags:
@@ -1040,7 +1412,7 @@ paths:
           description: ''
   /api/v1/payments/currency/{id}/:
     get:
-      operationId: api_v1_payments_currency_retrieve
+      operationId: payments_currency_retrieve
       description: Retrieve details of a specific active Currency by ID.
       summary: Retrieve a Currency
       parameters:
@@ -1064,7 +1436,7 @@ paths:
                 $ref: '#/components/schemas/Currency'
           description: ''
     put:
-      operationId: api_v1_payments_currency_update
+      operationId: payments_currency_update
       description: Fully update a Currency by ID.
       summary: Update a Currency
       parameters:
@@ -1100,7 +1472,7 @@ paths:
                 $ref: '#/components/schemas/Currency'
           description: ''
     patch:
-      operationId: api_v1_payments_currency_partial_update
+      operationId: payments_currency_partial_update
       description: Partially update a Currency.
       summary: Partially update a Currency
       parameters:
@@ -1135,7 +1507,7 @@ paths:
                 $ref: '#/components/schemas/Currency'
           description: ''
     delete:
-      operationId: api_v1_payments_currency_destroy
+      operationId: payments_currency_destroy
       description: Delete a Currency by ID.
       summary: Delete a Currency
       parameters:
@@ -1156,7 +1528,7 @@ paths:
           description: No response body
   /api/v1/payments/methods/:
     get:
-      operationId: api_v1_payments_methods_list
+      operationId: payments_methods_list
       description: Retrieve a list of all active PaymentMethods.
       summary: List all active PaymentMethods
       parameters:
@@ -1191,7 +1563,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedPaymentMethodList'
           description: ''
     post:
-      operationId: api_v1_payments_methods_create
+      operationId: payments_methods_create
       description: Create a new PaymentMethod.
       summary: Create a new PaymentMethod
       tags:
@@ -1220,7 +1592,7 @@ paths:
           description: ''
   /api/v1/payments/methods/{id}/:
     get:
-      operationId: api_v1_payments_methods_retrieve
+      operationId: payments_methods_retrieve
       description: Retrieve details of a specific active PaymentMethod by ID.
       summary: Retrieve a PaymentMethod
       parameters:
@@ -1244,7 +1616,7 @@ paths:
                 $ref: '#/components/schemas/PaymentMethod'
           description: ''
     put:
-      operationId: api_v1_payments_methods_update
+      operationId: payments_methods_update
       description: Fully update a PaymentMethod by ID.
       summary: Update a PaymentMethod
       parameters:
@@ -1280,7 +1652,7 @@ paths:
                 $ref: '#/components/schemas/PaymentMethod'
           description: ''
     patch:
-      operationId: api_v1_payments_methods_partial_update
+      operationId: payments_methods_partial_update
       description: Partially update a PaymentMethod.
       summary: Partially update a PaymentMethod
       parameters:
@@ -1315,7 +1687,7 @@ paths:
                 $ref: '#/components/schemas/PaymentMethod'
           description: ''
     delete:
-      operationId: api_v1_payments_methods_destroy
+      operationId: payments_methods_destroy
       description: Delete a PaymentMethod by ID.
       summary: Delete a PaymentMethod
       parameters:
@@ -1336,7 +1708,7 @@ paths:
           description: No response body
   /api/v1/pos/registers/:
     get:
-      operationId: api_v1_pos_registers_list
+      operationId: pos_registers_list
       description: Retrieve a list of all active register records.
       summary: List all active registers
       parameters:
@@ -1371,7 +1743,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedRegisterList'
           description: ''
     post:
-      operationId: api_v1_pos_registers_create
+      operationId: pos_registers_create
       description: Create a new register entry.
       summary: Create a new register
       tags:
@@ -1400,7 +1772,7 @@ paths:
           description: ''
   /api/v1/pos/registers/{id}/:
     get:
-      operationId: api_v1_pos_registers_retrieve
+      operationId: pos_registers_retrieve
       description: Retrieve details of a specific active register by ID.
       summary: Retrieve a register
       parameters:
@@ -1424,7 +1796,7 @@ paths:
                 $ref: '#/components/schemas/Register'
           description: ''
     put:
-      operationId: api_v1_pos_registers_update
+      operationId: pos_registers_update
       description: Fully update a register record by ID.
       summary: Update a register
       parameters:
@@ -1460,7 +1832,7 @@ paths:
                 $ref: '#/components/schemas/Register'
           description: ''
     patch:
-      operationId: api_v1_pos_registers_partial_update
+      operationId: pos_registers_partial_update
       description: Update specific fields of a register record.
       summary: Partially update a register
       parameters:
@@ -1495,7 +1867,7 @@ paths:
                 $ref: '#/components/schemas/Register'
           description: ''
     delete:
-      operationId: api_v1_pos_registers_destroy
+      operationId: pos_registers_destroy
       description: Delete (deactivate) a specific register by ID.
       summary: Delete a register
       parameters:
@@ -1516,7 +1888,7 @@ paths:
           description: No response body
   /api/v1/pos/sales/:
     get:
-      operationId: api_v1_pos_sales_list
+      operationId: pos_sales_list
       description: Retrieve a list of all active sale records.
       summary: List all active sales
       parameters:
@@ -1586,7 +1958,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedSaleList'
           description: ''
     post:
-      operationId: api_v1_pos_sales_create
+      operationId: pos_sales_create
       description: Create a new sale record.
       summary: Create a new sale
       tags:
@@ -1615,7 +1987,7 @@ paths:
           description: ''
   /api/v1/pos/sales/{id}/:
     get:
-      operationId: api_v1_pos_sales_retrieve
+      operationId: pos_sales_retrieve
       description: Retrieve details of a specific active sale by ID.
       summary: Retrieve a sale
       parameters:
@@ -1639,7 +2011,7 @@ paths:
                 $ref: '#/components/schemas/Sale'
           description: ''
     put:
-      operationId: api_v1_pos_sales_update
+      operationId: pos_sales_update
       description: Fully update a sale record by ID.
       summary: Update a sale
       parameters:
@@ -1675,7 +2047,7 @@ paths:
                 $ref: '#/components/schemas/Sale'
           description: ''
     patch:
-      operationId: api_v1_pos_sales_partial_update
+      operationId: pos_sales_partial_update
       description: Update specific fields of a sale record.
       summary: Partially update a sale
       parameters:
@@ -1710,7 +2082,7 @@ paths:
                 $ref: '#/components/schemas/Sale'
           description: ''
     delete:
-      operationId: api_v1_pos_sales_destroy
+      operationId: pos_sales_destroy
       description: Delete (deactivate) a specific sale by ID.
       summary: Delete a sale
       parameters:
@@ -1731,7 +2103,7 @@ paths:
           description: No response body
   /api/v1/pos/sessions/:
     get:
-      operationId: api_v1_pos_sessions_list
+      operationId: pos_sessions_list
       description: Retrieve a list of all active session records.
       summary: List all active sessions
       parameters:
@@ -1766,7 +2138,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedSessionList'
           description: ''
     post:
-      operationId: api_v1_pos_sessions_create
+      operationId: pos_sessions_create
       description: Create a new session entry.
       summary: Create a new session
       tags:
@@ -1795,7 +2167,7 @@ paths:
           description: ''
   /api/v1/pos/sessions/{id}/:
     get:
-      operationId: api_v1_pos_sessions_retrieve
+      operationId: pos_sessions_retrieve
       description: Retrieve details of a specific active session by ID.
       summary: Retrieve a session
       parameters:
@@ -1819,7 +2191,7 @@ paths:
                 $ref: '#/components/schemas/Session'
           description: ''
     put:
-      operationId: api_v1_pos_sessions_update
+      operationId: pos_sessions_update
       description: Fully update a session record by ID.
       summary: Update a session
       parameters:
@@ -1855,7 +2227,7 @@ paths:
                 $ref: '#/components/schemas/Session'
           description: ''
     patch:
-      operationId: api_v1_pos_sessions_partial_update
+      operationId: pos_sessions_partial_update
       description: Update specific fields of a session record.
       summary: Partially update a session
       parameters:
@@ -1890,7 +2262,7 @@ paths:
                 $ref: '#/components/schemas/Session'
           description: ''
     delete:
-      operationId: api_v1_pos_sessions_destroy
+      operationId: pos_sessions_destroy
       description: Delete (deactivate) a specific session by ID.
       summary: Delete a session
       parameters:
@@ -1909,9 +2281,34 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/pos/sessions/{id}/close/:
+    post:
+      operationId: pos_sessions_close_create
+      description: Custom action to close a session by providing closing balance.
+      summary: Close a session
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this POS Session.
+        required: true
+      tags:
+      - Sales
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+          description: ''
   /api/v1/products/:
     get:
-      operationId: api_v1_products_list
+      operationId: products_list
       description: Retrieve a list of all active products.
       summary: List all active products
       parameters:
@@ -1981,7 +2378,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedProductList'
           description: ''
     post:
-      operationId: api_v1_products_create
+      operationId: products_create
       description: Create a new product.
       summary: Create a new product
       tags:
@@ -2010,7 +2407,7 @@ paths:
           description: ''
   /api/v1/products/{id}/:
     get:
-      operationId: api_v1_products_retrieve
+      operationId: products_retrieve
       description: Retrieve details of a specific active product by ID.
       summary: Retrieve a product
       parameters:
@@ -2034,7 +2431,7 @@ paths:
                 $ref: '#/components/schemas/Product'
           description: ''
     put:
-      operationId: api_v1_products_update
+      operationId: products_update
       description: Fully update a product by ID.
       summary: Update a product
       parameters:
@@ -2070,7 +2467,7 @@ paths:
                 $ref: '#/components/schemas/Product'
           description: ''
     patch:
-      operationId: api_v1_products_partial_update
+      operationId: products_partial_update
       description: Partially update a product.
       summary: Partially update a product
       parameters:
@@ -2105,7 +2502,7 @@ paths:
                 $ref: '#/components/schemas/Product'
           description: ''
     delete:
-      operationId: api_v1_products_destroy
+      operationId: products_destroy
       description: Delete a product by ID.
       summary: Delete a product
       parameters:
@@ -2124,9 +2521,46 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/products/{id}/adjust-stock/:
+    post:
+      operationId: products_adjust_stock_create
+      description: Increase or decrease stock for a given product by product ID.
+      summary: Adjust the stock of a product
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this product.
+        required: true
+      tags:
+      - Products
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdjustStockRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AdjustStockRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AdjustStockRequest'
+        required: true
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdjustStockResponse'
+          description: Stock adjusted successfully
   /api/v1/products/categories/:
     get:
-      operationId: api_v1_products_categories_list
+      operationId: products_categories_list
       description: Retrieve a list of all active product categories.
       summary: List all active categories
       parameters:
@@ -2161,7 +2595,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedCategoryList'
           description: ''
     post:
-      operationId: api_v1_products_categories_create
+      operationId: products_categories_create
       description: Create a new product category.
       summary: Create a new category
       tags:
@@ -2190,7 +2624,7 @@ paths:
           description: ''
   /api/v1/products/categories/{id}/:
     get:
-      operationId: api_v1_products_categories_retrieve
+      operationId: products_categories_retrieve
       description: Retrieve details of a specific active category by ID.
       summary: Retrieve a category
       parameters:
@@ -2214,7 +2648,7 @@ paths:
                 $ref: '#/components/schemas/Category'
           description: ''
     put:
-      operationId: api_v1_products_categories_update
+      operationId: products_categories_update
       description: Fully update a product category by ID.
       summary: Update a category
       parameters:
@@ -2250,7 +2684,7 @@ paths:
                 $ref: '#/components/schemas/Category'
           description: ''
     patch:
-      operationId: api_v1_products_categories_partial_update
+      operationId: products_categories_partial_update
       description: Partially update a product category.
       summary: Partially update a category
       parameters:
@@ -2285,7 +2719,7 @@ paths:
                 $ref: '#/components/schemas/Category'
           description: ''
     delete:
-      operationId: api_v1_products_categories_destroy
+      operationId: products_categories_destroy
       description: Delete a product category by ID.
       summary: Delete a category
       parameters:
@@ -2306,7 +2740,7 @@ paths:
           description: No response body
   /api/v1/products/dashboard/:
     get:
-      operationId: api_v1_products_dashboard_retrieve
+      operationId: products_dashboard_retrieve
       description: Retrieve statistics for the product dashboard.
       summary: Product Dashboard Statistics
       tags:
@@ -2319,7 +2753,7 @@ paths:
           description: No response body
   /api/v1/products/units/:
     get:
-      operationId: api_v1_products_units_list
+      operationId: products_units_list
       description: Retrieve a list of all active units.
       summary: List all active units
       parameters:
@@ -2354,7 +2788,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedUnitList'
           description: ''
     post:
-      operationId: api_v1_products_units_create
+      operationId: products_units_create
       description: Create a new unit.
       summary: Create a new unit
       tags:
@@ -2383,7 +2817,7 @@ paths:
           description: ''
   /api/v1/products/units/{id}/:
     get:
-      operationId: api_v1_products_units_retrieve
+      operationId: products_units_retrieve
       description: Retrieve details of a specific active unit by ID.
       summary: Retrieve a unit
       parameters:
@@ -2407,7 +2841,7 @@ paths:
                 $ref: '#/components/schemas/Unit'
           description: ''
     put:
-      operationId: api_v1_products_units_update
+      operationId: products_units_update
       description: Fully update a unit by ID.
       summary: Update a unit
       parameters:
@@ -2443,7 +2877,7 @@ paths:
                 $ref: '#/components/schemas/Unit'
           description: ''
     patch:
-      operationId: api_v1_products_units_partial_update
+      operationId: products_units_partial_update
       description: Partially update a unit.
       summary: Partially update a unit
       parameters:
@@ -2478,7 +2912,7 @@ paths:
                 $ref: '#/components/schemas/Unit'
           description: ''
     delete:
-      operationId: api_v1_products_units_destroy
+      operationId: products_units_destroy
       description: Delete a unit by ID.
       summary: Delete a unit
       parameters:
@@ -2499,7 +2933,7 @@ paths:
           description: No response body
   /api/v1/purchases/:
     get:
-      operationId: api_v1_purchases_list
+      operationId: purchases_list
       description: Retrieve a list of all active Purchase records.
       summary: List all active Purchases
       parameters:
@@ -2534,7 +2968,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedPurchaseList'
           description: ''
     post:
-      operationId: api_v1_purchases_create
+      operationId: purchases_create
       description: Create a new Purchase record with the provided data.
       summary: Create a new Purchase
       tags:
@@ -2563,7 +2997,7 @@ paths:
           description: ''
   /api/v1/purchases/{id}/:
     get:
-      operationId: api_v1_purchases_retrieve
+      operationId: purchases_retrieve
       description: Retrieve the details of a specific active Purchase by ID.
       summary: Retrieve a Purchase
       parameters:
@@ -2587,7 +3021,7 @@ paths:
                 $ref: '#/components/schemas/Purchase'
           description: ''
     put:
-      operationId: api_v1_purchases_update
+      operationId: purchases_update
       description: Fully update a Purchase record by ID.
       summary: Update a Purchase
       parameters:
@@ -2623,7 +3057,7 @@ paths:
                 $ref: '#/components/schemas/Purchase'
           description: ''
     patch:
-      operationId: api_v1_purchases_partial_update
+      operationId: purchases_partial_update
       description: Update one or more fields of a Purchase record.
       summary: Partially update a Purchase
       parameters:
@@ -2658,7 +3092,7 @@ paths:
                 $ref: '#/components/schemas/Purchase'
           description: ''
     delete:
-      operationId: api_v1_purchases_destroy
+      operationId: purchases_destroy
       description: Delete (deactivate) a specific Purchase by ID.
       summary: Delete a Purchase
       parameters:
@@ -2679,7 +3113,7 @@ paths:
           description: No response body
   /api/v1/schema/:
     get:
-      operationId: api_v1_schema_retrieve
+      operationId: schema_retrieve
       description: |-
         OpenApi3 schema for this API. Format can be selected via content negotiation.
 
@@ -2798,7 +3232,7 @@ paths:
           - zh-hans
           - zh-hant
       tags:
-      - api
+      - schema
       security:
       - basicAuth: []
       - jwtAuth: []
@@ -2825,7 +3259,7 @@ paths:
           description: ''
   /api/v1/stock/adjustments/:
     get:
-      operationId: api_v1_stock_adjustments_list
+      operationId: stock_adjustments_list
       description: Retrieve a list of all active stock adjustment records.
       summary: List all active stock adjustments
       parameters:
@@ -2860,7 +3294,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedStockAdjustmentList'
           description: ''
     post:
-      operationId: api_v1_stock_adjustments_create
+      operationId: stock_adjustments_create
       description: Create a new stock adjustment record with the provided data.
       summary: Create a new stock adjustment
       tags:
@@ -2889,7 +3323,7 @@ paths:
           description: ''
   /api/v1/stock/adjustments/{id}/:
     get:
-      operationId: api_v1_stock_adjustments_retrieve
+      operationId: stock_adjustments_retrieve
       description: Retrieve the details of a specific active stock adjustment by ID.
       summary: Retrieve a stock adjustment
       parameters:
@@ -2913,7 +3347,7 @@ paths:
                 $ref: '#/components/schemas/StockAdjustment'
           description: ''
     put:
-      operationId: api_v1_stock_adjustments_update
+      operationId: stock_adjustments_update
       description: Fully update a stock adjustment record by ID.
       summary: Update a stock adjustment
       parameters:
@@ -2949,7 +3383,7 @@ paths:
                 $ref: '#/components/schemas/StockAdjustment'
           description: ''
     patch:
-      operationId: api_v1_stock_adjustments_partial_update
+      operationId: stock_adjustments_partial_update
       description: Update one or more fields of a stock adjustment record.
       summary: Partially update a stock adjustment
       parameters:
@@ -2984,7 +3418,7 @@ paths:
                 $ref: '#/components/schemas/StockAdjustment'
           description: ''
     delete:
-      operationId: api_v1_stock_adjustments_destroy
+      operationId: stock_adjustments_destroy
       description: Delete (deactivate) a specific stock adjustment by ID.
       summary: Delete a stock adjustment
       parameters:
@@ -3005,9 +3439,10 @@ paths:
           description: No response body
   /api/v1/stock/locations/:
     get:
-      operationId: api_v1_stock_locations_list
-      description: Retrieve a list of all active location records.
-      summary: List all active locations
+      operationId: stock_locations_list
+      description: |-
+        A mixin that filters queryset by the user's companies.
+        Works with ModelViewSet and GenericAPIView.
       parameters:
       - name: ordering
         required: false
@@ -3028,7 +3463,7 @@ paths:
         schema:
           type: string
       tags:
-      - Inventory
+      - stock
       security:
       - basicAuth: []
       - jwtAuth: []
@@ -3040,11 +3475,12 @@ paths:
                 $ref: '#/components/schemas/PaginatedLocationList'
           description: ''
     post:
-      operationId: api_v1_stock_locations_create
-      description: Create a new location record with the provided data.
-      summary: Create a new location
+      operationId: stock_locations_create
+      description: |-
+        A mixin that filters queryset by the user's companies.
+        Works with ModelViewSet and GenericAPIView.
       tags:
-      - Inventory
+      - stock
       requestBody:
         content:
           application/json:
@@ -3069,9 +3505,10 @@ paths:
           description: ''
   /api/v1/stock/locations/{id}/:
     get:
-      operationId: api_v1_stock_locations_retrieve
-      description: Retrieve the details of a specific active location by ID.
-      summary: Retrieve a location
+      operationId: stock_locations_retrieve
+      description: |-
+        A mixin that filters queryset by the user's companies.
+        Works with ModelViewSet and GenericAPIView.
       parameters:
       - in: path
         name: id
@@ -3081,7 +3518,7 @@ paths:
         description: A UUID string identifying this location.
         required: true
       tags:
-      - Inventory
+      - stock
       security:
       - basicAuth: []
       - jwtAuth: []
@@ -3093,9 +3530,10 @@ paths:
                 $ref: '#/components/schemas/Location'
           description: ''
     put:
-      operationId: api_v1_stock_locations_update
-      description: Fully update a location record by ID.
-      summary: Update a location
+      operationId: stock_locations_update
+      description: |-
+        A mixin that filters queryset by the user's companies.
+        Works with ModelViewSet and GenericAPIView.
       parameters:
       - in: path
         name: id
@@ -3105,7 +3543,7 @@ paths:
         description: A UUID string identifying this location.
         required: true
       tags:
-      - Inventory
+      - stock
       requestBody:
         content:
           application/json:
@@ -3129,9 +3567,10 @@ paths:
                 $ref: '#/components/schemas/Location'
           description: ''
     patch:
-      operationId: api_v1_stock_locations_partial_update
-      description: Update one or more fields of a location record.
-      summary: Partially update a location
+      operationId: stock_locations_partial_update
+      description: |-
+        A mixin that filters queryset by the user's companies.
+        Works with ModelViewSet and GenericAPIView.
       parameters:
       - in: path
         name: id
@@ -3141,7 +3580,7 @@ paths:
         description: A UUID string identifying this location.
         required: true
       tags:
-      - Inventory
+      - stock
       requestBody:
         content:
           application/json:
@@ -3164,9 +3603,10 @@ paths:
                 $ref: '#/components/schemas/Location'
           description: ''
     delete:
-      operationId: api_v1_stock_locations_destroy
-      description: Delete (deactivate) a specific location by ID.
-      summary: Delete a location
+      operationId: stock_locations_destroy
+      description: |-
+        A mixin that filters queryset by the user's companies.
+        Works with ModelViewSet and GenericAPIView.
       parameters:
       - in: path
         name: id
@@ -3176,7 +3616,7 @@ paths:
         description: A UUID string identifying this location.
         required: true
       tags:
-      - Inventory
+      - stock
       security:
       - basicAuth: []
       - jwtAuth: []
@@ -3185,7 +3625,7 @@ paths:
           description: No response body
   /api/v1/stock/pickings/:
     get:
-      operationId: api_v1_stock_pickings_list
+      operationId: stock_pickings_list
       description: Retrieve a list of all active stock picking records.
       summary: List all active stock pickings
       parameters:
@@ -3220,7 +3660,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedStockPickingList'
           description: ''
     post:
-      operationId: api_v1_stock_pickings_create
+      operationId: stock_pickings_create
       description: Create a new stock picking record with the provided data.
       summary: Create a new stock picking
       tags:
@@ -3249,7 +3689,7 @@ paths:
           description: ''
   /api/v1/stock/pickings/{id}/:
     get:
-      operationId: api_v1_stock_pickings_retrieve
+      operationId: stock_pickings_retrieve
       description: Retrieve the details of a specific active stock picking by ID.
       summary: Retrieve a stock picking
       parameters:
@@ -3273,7 +3713,7 @@ paths:
                 $ref: '#/components/schemas/StockPicking'
           description: ''
     put:
-      operationId: api_v1_stock_pickings_update
+      operationId: stock_pickings_update
       description: Fully update a stock picking record by ID.
       summary: Update a stock picking
       parameters:
@@ -3309,7 +3749,7 @@ paths:
                 $ref: '#/components/schemas/StockPicking'
           description: ''
     patch:
-      operationId: api_v1_stock_pickings_partial_update
+      operationId: stock_pickings_partial_update
       description: Update one or more fields of a stock picking record.
       summary: Partially update a stock picking
       parameters:
@@ -3344,7 +3784,7 @@ paths:
                 $ref: '#/components/schemas/StockPicking'
           description: ''
     delete:
-      operationId: api_v1_stock_pickings_destroy
+      operationId: stock_pickings_destroy
       description: Delete (deactivate) a specific stock picking by ID.
       summary: Delete a stock picking
       parameters:
@@ -3363,9 +3803,123 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/v1/stock/pickings/{id}/cancel/:
+    post:
+      operationId: stock_pickings_cancel_create
+      description: |-
+        A mixin that filters queryset by the user's companies.
+        Works with ModelViewSet and GenericAPIView.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this stock picking.
+        required: true
+      tags:
+      - stock
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockPicking'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StockPicking'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StockPicking'
+        required: true
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockPicking'
+          description: ''
+  /api/v1/stock/pickings/{id}/confirm/:
+    post:
+      operationId: stock_pickings_confirm_create
+      description: |-
+        A mixin that filters queryset by the user's companies.
+        Works with ModelViewSet and GenericAPIView.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this stock picking.
+        required: true
+      tags:
+      - stock
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockPicking'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StockPicking'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StockPicking'
+        required: true
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockPicking'
+          description: ''
+  /api/v1/stock/pickings/{id}/done/:
+    post:
+      operationId: stock_pickings_done_create
+      description: |-
+        A mixin that filters queryset by the user's companies.
+        Works with ModelViewSet and GenericAPIView.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this stock picking.
+        required: true
+      tags:
+      - stock
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StockPicking'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/StockPicking'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/StockPicking'
+        required: true
+      security:
+      - basicAuth: []
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockPicking'
+          description: ''
   /api/v1/users/:
     get:
-      operationId: api_v1_users_list
+      operationId: users_list
       parameters:
       - name: ordering
         required: false
@@ -3386,7 +3940,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - users
       security:
       - basicAuth: []
       - jwtAuth: []
@@ -3398,20 +3952,20 @@ paths:
                 $ref: '#/components/schemas/PaginatedCustomUserList'
           description: ''
     post:
-      operationId: api_v1_users_create
+      operationId: users_create
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserCreate'
+              $ref: '#/components/schemas/CustomUserCreate'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/UserCreate'
+              $ref: '#/components/schemas/CustomUserCreate'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/UserCreate'
+              $ref: '#/components/schemas/CustomUserCreate'
         required: true
       security:
       - basicAuth: []
@@ -3422,11 +3976,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserCreate'
+                $ref: '#/components/schemas/CustomUserCreate'
           description: ''
   /api/v1/users/{id}/:
     get:
-      operationId: api_v1_users_retrieve
+      operationId: users_retrieve
       parameters:
       - in: path
         name: id
@@ -3435,7 +3989,7 @@ paths:
         description: A unique integer value identifying this user.
         required: true
       tags:
-      - api
+      - users
       security:
       - basicAuth: []
       - jwtAuth: []
@@ -3447,7 +4001,7 @@ paths:
                 $ref: '#/components/schemas/CustomUser'
           description: ''
     put:
-      operationId: api_v1_users_update
+      operationId: users_update
       parameters:
       - in: path
         name: id
@@ -3456,7 +4010,7 @@ paths:
         description: A unique integer value identifying this user.
         required: true
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
@@ -3479,7 +4033,7 @@ paths:
                 $ref: '#/components/schemas/CustomUser'
           description: ''
     patch:
-      operationId: api_v1_users_partial_update
+      operationId: users_partial_update
       parameters:
       - in: path
         name: id
@@ -3488,7 +4042,7 @@ paths:
         description: A unique integer value identifying this user.
         required: true
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
@@ -3511,7 +4065,7 @@ paths:
                 $ref: '#/components/schemas/CustomUser'
           description: ''
     delete:
-      operationId: api_v1_users_destroy
+      operationId: users_destroy
       parameters:
       - in: path
         name: id
@@ -3520,7 +4074,7 @@ paths:
         description: A unique integer value identifying this user.
         required: true
       tags:
-      - api
+      - users
       security:
       - basicAuth: []
       - jwtAuth: []
@@ -3529,9 +4083,9 @@ paths:
           description: No response body
   /api/v1/users/activation/:
     post:
-      operationId: api_v1_users_activation_create
+      operationId: users_activation_create
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
@@ -3557,9 +4111,9 @@ paths:
           description: ''
   /api/v1/users/me/:
     get:
-      operationId: api_v1_users_me_retrieve
+      operationId: users_me_retrieve
       tags:
-      - api
+      - users
       security:
       - basicAuth: []
       - jwtAuth: []
@@ -3571,9 +4125,9 @@ paths:
                 $ref: '#/components/schemas/CustomUser'
           description: ''
     put:
-      operationId: api_v1_users_me_update
+      operationId: users_me_update
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
@@ -3596,9 +4150,9 @@ paths:
                 $ref: '#/components/schemas/CustomUser'
           description: ''
     patch:
-      operationId: api_v1_users_me_partial_update
+      operationId: users_me_partial_update
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
@@ -3621,9 +4175,9 @@ paths:
                 $ref: '#/components/schemas/CustomUser'
           description: ''
     delete:
-      operationId: api_v1_users_me_destroy
+      operationId: users_me_destroy
       tags:
-      - api
+      - users
       security:
       - basicAuth: []
       - jwtAuth: []
@@ -3632,9 +4186,9 @@ paths:
           description: No response body
   /api/v1/users/resend_activation/:
     post:
-      operationId: api_v1_users_resend_activation_create
+      operationId: users_resend_activation_create
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
@@ -3660,9 +4214,9 @@ paths:
           description: ''
   /api/v1/users/reset_password/:
     post:
-      operationId: api_v1_users_reset_password_create
+      operationId: users_reset_password_create
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
@@ -3688,9 +4242,9 @@ paths:
           description: ''
   /api/v1/users/reset_password_confirm/:
     post:
-      operationId: api_v1_users_reset_password_confirm_create
+      operationId: users_reset_password_confirm_create
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
@@ -3716,9 +4270,9 @@ paths:
           description: ''
   /api/v1/users/reset_username/:
     post:
-      operationId: api_v1_users_reset_username_create
+      operationId: users_reset_username_create
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
@@ -3744,9 +4298,9 @@ paths:
           description: ''
   /api/v1/users/reset_username_confirm/:
     post:
-      operationId: api_v1_users_reset_username_confirm_create
+      operationId: users_reset_username_confirm_create
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
@@ -3772,9 +4326,9 @@ paths:
           description: ''
   /api/v1/users/set_password/:
     post:
-      operationId: api_v1_users_set_password_create
+      operationId: users_set_password_create
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
@@ -3799,9 +4353,9 @@ paths:
           description: ''
   /api/v1/users/set_username/:
     post:
-      operationId: api_v1_users_set_username_create
+      operationId: users_set_username_create
       tags:
-      - api
+      - users
       requestBody:
         content:
           application/json:
@@ -3836,6 +4390,23 @@ components:
       required:
       - token
       - uid
+    AdjustStockRequest:
+      type: object
+      properties:
+        adjustment:
+          type: integer
+      required:
+      - adjustment
+    AdjustStockResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        new_stock:
+          type: integer
+      required:
+      - new_stock
+      - status
     BillingCurrency:
       type: object
       properties:
@@ -3920,6 +4491,30 @@ components:
         * `owner` - Owner
         * `billing_admin` - Billing Admin
         * `viewer` - Viewer
+    CashFlow:
+      type: object
+      description: Cash flow analysis
+      properties:
+        date:
+          type: string
+          format: date
+        sales_revenue:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        purchase_expenses:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        net_cash_flow:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+      required:
+      - date
+      - net_cash_flow
+      - purchase_expenses
+      - sales_revenue
     Category:
       type: object
       properties:
@@ -3947,6 +4542,31 @@ components:
       - id
       - title
       - updated_at
+    CategoryPerformance:
+      type: object
+      description: Category-wise performance
+      properties:
+        category_id:
+          type: string
+          format: uuid
+        category_name:
+          type: string
+        total_sales:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        product_count:
+          type: integer
+        percentage_of_total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+      required:
+      - category_id
+      - category_name
+      - percentage_of_total
+      - product_count
+      - total_sales
     Company:
       type: object
       properties:
@@ -4068,9 +4688,6 @@ components:
         groups:
           type: string
           readOnly: true
-        permissions:
-          type: string
-          readOnly: true
         first_name:
           type: string
           maxLength: 150
@@ -4089,8 +4706,142 @@ components:
       - companies
       - groups
       - id
-      - permissions
       - username
+    CustomUserCreate:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email address
+          maxLength: 254
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        id:
+          type: integer
+          readOnly: true
+        password:
+          type: string
+          writeOnly: true
+        password2:
+          type: string
+          writeOnly: true
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        company_title:
+          type: string
+          writeOnly: true
+          default: My Company
+      required:
+      - id
+      - password
+      - password2
+      - username
+    CustomerInsights:
+      type: object
+      description: Customer analytics
+      properties:
+        customer_id:
+          type: string
+          format: uuid
+        customer_name:
+          type: string
+        total_purchases:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        transaction_count:
+          type: integer
+        average_purchase:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        last_purchase_date:
+          type: string
+          format: date-time
+      required:
+      - average_purchase
+      - customer_id
+      - customer_name
+      - last_purchase_date
+      - total_purchases
+      - transaction_count
+    DashboardOverview:
+      type: object
+      description: Main dashboard overview metrics
+      properties:
+        total_sales:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total_purchases:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        total_revenue:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        profit_margin:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+        active_sessions:
+          type: integer
+        pending_invoices:
+          type: integer
+        low_stock_items:
+          type: integer
+        total_customers:
+          type: integer
+        period:
+          type: string
+      required:
+      - active_sessions
+      - low_stock_items
+      - pending_invoices
+      - period
+      - profit_margin
+      - total_customers
+      - total_purchases
+      - total_revenue
+      - total_sales
+    InventoryStatus:
+      type: object
+      description: Inventory health metrics
+      properties:
+        total_products:
+          type: integer
+        active_products:
+          type: integer
+        low_stock_products:
+          type: integer
+        out_of_stock_products:
+          type: integer
+        total_inventory_value:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        products_needing_reorder:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+      required:
+      - active_products
+      - low_stock_products
+      - out_of_stock_products
+      - products_needing_reorder
+      - total_inventory_value
+      - total_products
     Invoice:
       type: object
       properties:
@@ -4164,8 +4915,13 @@ components:
           type: boolean
         active:
           type: boolean
+        company:
+          type: integer
+          readOnly: true
+          nullable: true
       required:
       - code
+      - company
       - created_at
       - id
       - title
@@ -4779,9 +5535,6 @@ components:
         groups:
           type: string
           readOnly: true
-        permissions:
-          type: string
-          readOnly: true
         first_name:
           type: string
           maxLength: 150
@@ -4796,46 +5549,6 @@ components:
         selected_company:
           type: integer
           nullable: true
-    PatchedInvoice:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-          readOnly: true
-        title:
-          type: string
-          maxLength: 100
-        customer_name:
-          type: string
-          nullable: true
-          maxLength: 150
-        amount_total:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
-        amount_paid:
-          type: string
-          format: decimal
-          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
-          readOnly: true
-        status:
-          allOf:
-          - $ref: '#/components/schemas/Status4e7Enum'
-          readOnly: true
-        payments:
-          type: array
-          items:
-            $ref: '#/components/schemas/Payment'
-          readOnly: true
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
     PatchedLocation:
       type: object
       properties:
@@ -4861,6 +5574,10 @@ components:
           type: boolean
         active:
           type: boolean
+        company:
+          type: integer
+          readOnly: true
+          nullable: true
     PatchedPartner:
       type: object
       properties:
@@ -5016,6 +5733,14 @@ components:
           items:
             $ref: '#/components/schemas/StockQuant'
           readOnly: true
+        current_stock:
+          type: string
+          readOnly: true
+        input_stock:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          writeOnly: true
         created_at:
           type: string
           format: date-time
@@ -5479,6 +6204,31 @@ components:
       - id
       - name
       - updated_at
+    PaymentMethodBreakdown:
+      type: object
+      description: Payment method distribution
+      properties:
+        method_id:
+          type: string
+          format: uuid
+        method_name:
+          type: string
+        transaction_count:
+          type: integer
+        total_amount:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        percentage:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+      required:
+      - method_id
+      - method_name
+      - percentage
+      - total_amount
+      - transaction_count
     PickingTypeEnum:
       enum:
       - incoming
@@ -5501,6 +6251,14 @@ components:
           items:
             $ref: '#/components/schemas/StockQuant'
           readOnly: true
+        current_stock:
+          type: string
+          readOnly: true
+        input_stock:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+          writeOnly: true
         created_at:
           type: string
           format: date-time
@@ -5551,11 +6309,56 @@ components:
           nullable: true
       required:
       - created_at
+      - current_stock
       - id
       - image
+      - input_stock
       - stock_quants
       - title
       - updated_at
+    ProfitLoss:
+      type: object
+      description: Profit & Loss statement
+      properties:
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+        gross_revenue:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        cost_of_goods:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        gross_profit:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        operating_expenses:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        net_profit:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        profit_margin:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+      required:
+      - cost_of_goods
+      - gross_profit
+      - gross_revenue
+      - net_profit
+      - operating_expenses
+      - period_end
+      - period_start
+      - profit_margin
     Purchase:
       type: object
       properties:
@@ -5718,6 +6521,34 @@ components:
       - title
       - updated_at
       - updated_by
+    RegisterPerformance:
+      type: object
+      description: Register/POS performance metrics
+      properties:
+        register_id:
+          type: string
+          format: uuid
+        register_title:
+          type: string
+        total_sales:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        transaction_count:
+          type: integer
+        average_transaction:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        active_session:
+          type: boolean
+      required:
+      - active_session
+      - average_transaction
+      - register_id
+      - register_title
+      - total_sales
+      - transaction_count
     Sale:
       type: object
       properties:
@@ -5873,6 +6704,28 @@ components:
       - subtotal
       - updated_at
       - updated_by
+    SalesTrend:
+      type: object
+      description: Sales trend over time
+      properties:
+        date:
+          type: string
+          format: date
+        total_sales:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        transaction_count:
+          type: integer
+        average_transaction:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+      required:
+      - average_transaction
+      - date
+      - total_sales
+      - transaction_count
     SendEmailReset:
       type: object
       properties:
@@ -5969,6 +6822,52 @@ components:
         * `opened` - Opened
         * `closed` - Closed
         * `in_progress` - In Progress
+    SessionSummary:
+      type: object
+      description: POS session summary
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        register_title:
+          type: string
+        start_time:
+          type: string
+          format: date-time
+        end_time:
+          type: string
+          format: date-time
+          nullable: true
+        opening_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        closing_balance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+        total_sales:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        transaction_count:
+          type: integer
+        cash_variance:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          nullable: true
+      required:
+      - cash_variance
+      - closing_balance
+      - end_time
+      - opening_balance
+      - register_title
+      - session_id
+      - start_time
+      - total_sales
+      - transaction_count
     SetPassword:
       type: object
       properties:
@@ -6071,6 +6970,7 @@ components:
         adjustment:
           type: string
           format: uuid
+          readOnly: true
         product:
           type: string
           format: uuid
@@ -6138,6 +7038,26 @@ components:
       - picking
       - product
       - updated_at
+    StockMovement:
+      type: object
+      description: Stock movement summary
+      properties:
+        incoming:
+          type: integer
+        outgoing:
+          type: integer
+        internal:
+          type: integer
+        pending:
+          type: integer
+        completed:
+          type: integer
+      required:
+      - completed
+      - incoming
+      - internal
+      - outgoing
+      - pending
     StockPicking:
       type: object
       properties:
@@ -6194,11 +7114,13 @@ components:
     StockPickingStatusEnum:
       enum:
       - new
+      - confirmed
       - done
       - cancel
       type: string
       description: |-
         * `new` - New
+        * `confirmed` - Confirmed
         * `done` - Done
         * `cancel` - Cancelled
     StockQuant:
@@ -6305,6 +7227,33 @@ components:
           writeOnly: true
       required:
       - token
+    TopProduct:
+      type: object
+      description: Top selling products
+      properties:
+        product_id:
+          type: string
+          format: uuid
+        product_title:
+          type: string
+        quantity_sold:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        revenue:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+        profit:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,10}(?:\.\d{0,2})?$
+      required:
+      - product_id
+      - product_title
+      - profit
+      - quantity_sold
+      - revenue
     TypeEnum:
       enum:
       - purchase
@@ -6340,30 +7289,6 @@ components:
       - id
       - title
       - updated_at
-    UserCreate:
-      type: object
-      properties:
-        email:
-          type: string
-          format: email
-          title: Email address
-          maxLength: 254
-        username:
-          type: string
-          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
-            only.
-          pattern: ^[\w.@+-]+$
-          maxLength: 150
-        id:
-          type: integer
-          readOnly: true
-        password:
-          type: string
-          writeOnly: true
-      required:
-      - id
-      - password
-      - username
     UsernameResetConfirm:
       type: object
       properties:
